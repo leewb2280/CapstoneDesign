@@ -20,19 +20,19 @@
 ## 🚀 설치 및 실행 방법
 
 ### 1. 프로젝트 복제
-```bash
+```Bash
 git clone [https://github.com/leewb2280/CapstoneDesign.git](https://github.com/leewb2280/CapstoneDesign.git)
 cd CapstoneDesign
 ```
 
 ### 2. 라이브러리 설치
-```bash
+```Bash
 pip install -r requirements.txt
 ```
 
 ### 3. 환경변수 설정 (.env)
 .env 파일을 같은 폴더안에 생성하고 밑의 코드를 작성합니다.
-```bash
+```
 # API_KEY
 OWM_API_KEY=6c5891515e6280535d63c4fe5e3fd9fb
 OPENAI_API_KEY=[sk-proj-...]
