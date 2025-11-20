@@ -1,0 +1,12 @@
+.idea
+.venv
+image-data
+.env
+lifestyle.json
+on_device_ai.py
+result_image.jpg
+today_result.json
+trouble_model.pkl
+user_prefs.json
+weekly_log.csv
+weekly_trend.png
