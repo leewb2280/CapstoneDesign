@@ -1,3 +1,4 @@
+### github에서 제외할 파일들
 .idea
 .venv
 image-data
