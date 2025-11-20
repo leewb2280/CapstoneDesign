@@ -20,13 +20,13 @@
 ## 🚀 설치 및 실행 방법
 
 ### 1. 프로젝트 복제
-```Bash
-git clone [https://github.com/leewb2280/CapstoneDesign.git](https://github.com/leewb2280/CapstoneDesign.git)
+```bash
+git clone https://github.com/leewb2280/CapstoneDesign.git
 cd CapstoneDesign
 ```
 
 ### 2. 라이브러리 설치
-```Bash
+```bash
 pip install -r requirements.txt
 ```
 
