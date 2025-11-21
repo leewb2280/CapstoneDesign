@@ -69,8 +69,8 @@ DB_PORT=5432
 ```Plaintext
 CapstoneDesign/
 ├── skin_analyzer.py     # [모듈] OpenAI API 활용 피부 이미지 분석
-├── skin_advisor.py      # [메인] 프로그램 실행 파일 (전체 흐름 제어)
-├── advisor_core.py      # [핵심] 피부 나이 계산 및 제품 추천 알고리즘 (구 engine.py)
+├── skin_advisor.py      # [모듈] 프로그램 실행 파일
+├── advisor_core.py      # [모듈] 피부 나이 계산 및 제품 추천 알고리즘
 ├── skincare_Scraper.py  # [도구] 올리브영 제품 정보 크롤러
 ├── utils.py             # [도구] DB연결, 파일입출력 등 공통 함수 모음
 ├── config.py            # [설정] API 키, 파일 경로, 가중치 등 전역 설정
