@@ -17,6 +17,11 @@ import datetime
 import joblib
 import psycopg2
 import numpy as np
+import platform
+import re
+import time
+import undetected_chromedriver as uc
+
 from config import * # 설정 파일 불러오기
 
 
@@ -350,3 +355,61 @@ def save_recommendation_to_db(analysis_id, skin_age, rec_result, routine, troubl
 
     except Exception as e:
         print(f"⚠️ [DB 저장 실패] {e}")
+
+
+# =========================================
+# 6. 스크래핑 헬퍼 (Scraping Helpers)
+# =========================================
+
+def clean_price_text(text):
+    """가격 문자열(예: '25,000원')에서 숫자만 추출하여 정수로 변환합니다."""
+    if not text: return 0
+    match = re.search(r'[\d,]+', text)
+    if match:
+        return int(match.group(0).replace(',', ''))
+    return 0
+
+
+def setup_chrome_driver(headless=False):
+    """
+    OS(Windows/Linux)를 감지하여 적절한 옵션으로 크롬 드라이버를 반환합니다.
+    라즈베리파이(Linux) 환경 대응 로직이 포함되어 있습니다.
+    """
+    current_os = platform.system()
+    print(f"🖥️ 감지된 운영체제: {current_os}")
+
+    options = uc.ChromeOptions()
+    driver_path = None
+
+    if current_os == 'Linux':
+        options.add_argument("--headless")  # 화면 없음 모드
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+        # config.py에서 가져오는 것이 좋으나, utils 안에서는 직접 참조하거나 인자로 받아야 함
+        # 여기서는 편의상 하드코딩 혹은 config import 필요
+        from config import LINUX_DRIVER_PATH
+        driver_path = LINUX_DRIVER_PATH
+
+    # headless 인자가 True면 윈도우에서도 백그라운드 실행
+    if headless and current_os == 'Windows':
+        options.add_argument("--headless")
+
+    try:
+        print("🚀 브라우저를 실행합니다...")
+        driver = uc.Chrome(options=options, driver_executable_path=driver_path)
+        return driver
+    except Exception as e:
+        print(f"❌ 브라우저 실행 실패: {e}")
+        if current_os == 'Linux':
+            print("Tip: sudo apt-get install chromium-chromedriver 설치 확인 필요")
+        return None
+
+
+def scroll_to_bottom(driver, count=5, sleep_range=(2, 4)):
+    """페이지를 아래로 스크롤합니다."""
+    import random
+    print("📜 스크롤 시작...")
+    for i in range(count):
+        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        time.sleep(random.uniform(*sleep_range))
+        print(f"   - 스크롤 {i + 1}/{count} 완료")

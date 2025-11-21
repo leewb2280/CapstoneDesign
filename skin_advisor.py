@@ -22,11 +22,11 @@ from utils import (
     save_recommendation_to_db
 )
 # 핵심 로직 엔진 임포트
-from engine import SkinCareAdvisor
+from analysis_logic import SkinCareAdvisor
 
 
 # =========================================
-# [수정] Numpy 타입을 파이썬 기본 타입으로 변환하는 함수
+# Numpy 타입을 파이썬 기본 타입으로 변환하는 함수
 # =========================================
 def convert_numpy_to_native(obj):
     if isinstance(obj, np.integer):
@@ -102,8 +102,8 @@ def main():
     # =========================================
     advisor = SkinCareAdvisor(payload)
 
-    # 1. 피부 나이 계산 (numpy -> int 강제 변환)
-    skin_age = int(advisor.calc_skin_age())  # [수정] int() 씌움
+    # 1. 피부 나이 계산
+    skin_age = int(advisor.calc_skin_age())
     print(f"\n🔎 분석 결과: 피부 나이 예측 {skin_age}세")
 
     # 2. 제품 데이터 로드 및 추천 실행
@@ -137,7 +137,7 @@ def main():
     ml_pred = predict_trouble_proba(payload)
     print(f"\n🔮 [AI 트러블 예측] {ml_pred['msg']}")
 
-    # [수정] 확률값 가져올 때 float() 강제 변환
+    # 확률값 가져올 때 float() 강제 변환
     raw_prob = ml_pred.get("prob", 0.0)
     if raw_prob is None:
         raw_prob = 0.0
@@ -147,7 +147,7 @@ def main():
     # 7. 결과 저장 (Logging & DB)
     # =========================================
 
-    # [수정] DB에 저장하기 전에 모든 데이터를 깨끗한 파이썬 타입으로 변환
+    # DB에 저장하기 전에 모든 데이터를 깨끗한 파이썬 타입으로 변환
     # (rec_result 안에 numpy 점수가 들어있을 수 있으므로 전체 세탁)
     clean_rec_result = convert_numpy_to_native(rec_result)
     clean_routine = convert_numpy_to_native(routine)
@@ -164,15 +164,15 @@ def main():
         "routine": clean_routine
     })
 
-    # (3) PostgreSQL DB에 저장 (여기가 오류 나던 곳)
+    # (3) PostgreSQL DB에 저장
     if analysis_id:
         print("💾 DB 저장을 시도합니다...")
         save_recommendation_to_db(
             analysis_id=analysis_id,
             skin_age=skin_age,
-            rec_result=clean_rec_result,  # [수정] 세탁된 데이터 전달
-            routine=clean_routine,  # [수정] 세탁된 데이터 전달
-            trouble_prob=trouble_prob_val  # [수정] float 변환된 값 전달
+            rec_result=clean_rec_result,
+            routine=clean_routine,
+            trouble_prob=trouble_prob_val
         )
     else:
         print("⚠️ 분석 ID가 없어 DB에 처방 결과를 연결하여 저장할 수 없습니다.")

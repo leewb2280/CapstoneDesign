@@ -143,7 +143,7 @@ if __name__ == "__main__":
     base_dir = os.path.dirname(os.path.abspath(__file__))
     # 테스트할 이미지 경로 (본인 환경에 맞게 수정 필요)
     TEST_IMAGE_PATH = os.path.join(base_dir,
-                                   r"image-data\test\images\acne-5_jpeg.rf.2d6671715f0149df7b494c4d3f12a98b.jpg")
+                                   r"image-data/test/images/0e4f450a-fee3-4617-9f3a-b7347454b494_942113d8_jpg.rf.6558a4fe6f338cd6cb063c73beb33025.jpg")
 
     print(f"--- 1. GPT 이미지 분석 시작 ({GPT_MODEL_NAME}) ---")
     gpt_result = analyze_skin_image(TEST_IMAGE_PATH)
