@@ -1,4 +1,4 @@
-# engine.py
+# analysis_logic.py
 """
 [핵심 로직 담당]
 이 파일은 'SkinCareAdvisor' 클래스를 통해 데이터를 분석하고 결정을 내립니다.

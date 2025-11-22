@@ -287,3 +287,16 @@ GPT_SYSTEM_PROMPT = """
   "redness": [홍조/붉은기 점수]
 }
 """
+
+# =========================================
+# 7. 스크래핑 설정 (Scraping Config)
+# =========================================
+
+# 올리브영 랭킹 페이지 URL
+OLIVEYOUNG_URL = "https://www.oliveyoung.co.kr/store/main/getBestList.do?dispCatNo=900000100100001&fltDispCatNo=10000010001&pageIdx=1&rowsPerPage=8&t_page=%EC%B9%B4%ED%85%8C%EA%B3%A0%EB%A6%AC%EA%B4%80&t_click=%EB%9E%AD%ED%82%B9BEST%EC%83%81%ED%92%88%EB%B8%8C%EB%9E%9C%EB%93%9C_%EC%9D%B8%EA%B8%B0%EC%83%81%ED%92%88%EB%B8%8C%EB%9E%9C%EB%93%9C_%EC%9D%B8%EA%B8%B0%EC%83%81%ED%92%88%EB%8D%94%EB%B3%B4%EA%B8%B0"
+
+# 크롤링 데이터 저장 파일명
+SCRAPED_DATA_PATH = 'oliveyoung_skincare_data_final.csv'
+
+# 리눅스(라즈베리파이)용 크롬 드라이버 경로
+LINUX_DRIVER_PATH = '/usr/bin/chromedriver'
