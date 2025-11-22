@@ -51,46 +51,52 @@ def main():
         # utils.py에 있는 함수를 사용해 화면을 5번 내립니다.
         scroll_to_bottom(driver, count=5)
 
+        # [수정된 코드 시작] ==========================================
         # 5. HTML 파싱 (BeautifulSoup)
-        # 현재 브라우저에 로딩된 페이지 소스를 가져와서 분석하기 쉽게 변환
         soup = BeautifulSoup(driver.page_source, 'html.parser')
         data_list = []
 
-        # 상품 리스트 컨테이너 찾기 (CSS 선택자 사용)
-        product_containers = soup.select('ul.list_goods > li')
-        # 혹시 뷰 모드가 달라서 태그가 다를 경우를 대비한 예비 선택자
-        if not product_containers:
-            product_containers = soup.select('ul.prd_list > li')
+        # 💡 기존 방식(ul 클래스 찾기) 대신, 상품 이름(.tx_name)이 있는 곳을 먼저 찾습니다.
+        # 이렇게 하면 상위 태그(ul) 이름이 바뀌어도 문제없이 찾을 수 있습니다.
+        name_tags = soup.select('.tx_name')
 
-        print(f"📦 상품 {len(product_containers)}개 발견.")
+        print(f"📦 발견된 상품 이름 태그: {len(name_tags)}개")
 
-        # 6. 개별 상품 정보 추출 반복문
-        for container in product_containers:
+        # 상품 이름 태그를 하나씩 돌면서 전체 정보를 추출합니다.
+        for name_tag in name_tags:
             try:
-                # 상품명 추출
-                name_tag = container.select_one('.prd_name .tx_name')
-                if not name_tag: continue  # 이름이 없으면 데이터로서 가치가 없으므로 건너뜀
+                # 1. 상품 컨테이너(li) 찾기: 이름 태그의 부모(li)를 찾습니다.
+                container = name_tag.find_parent('li')
+                if not container: continue
 
+                # 2. 상품명 추출
                 name = name_tag.text.strip()
 
-                # 가격 추출 (utils의 clean_price_text 함수로 쉼표 제거 및 정수 변환)
-                final_tag = container.select_one('.tx_cur') # 할인가(최종가)
-                org_tag = container.select_one('.tx_org')   # 정가(원가)
+                # 3. 가격 추출
+                final_tag = container.select_one('.tx_cur')  # 할인가(최종가)
+                org_tag = container.select_one('.tx_org')  # 정가(원가)
 
                 final_price = clean_price_text(final_tag.text) if final_tag else 0
+                # 정가가 없으면 할인가를 정가로 취급
                 org_price = clean_price_text(org_tag.text) if org_tag else final_price
 
-                # 할인율 계산 (정가가 0이 아니고, 실제 할인이 있을 때만 계산)
+                # 4. 할인율 계산
                 discount = 0.0
                 if org_price > 0 and final_price < org_price:
                     discount = round(((org_price - final_price) / org_price) * 100, 1)
 
-                # 상품 ID 및 상세 페이지 링크 추출
-                link_tag = container.select_one('a[data-ref-goodsno]')
-                pid = link_tag['data-ref-goodsno'] if link_tag else "N/A"
-                link = link_tag['href'] if link_tag else ""
+                # 5. 상품 ID 및 링크 추출
+                link_tag = container.select_one('a')
+                pid = "N/A"
+                link = ""
 
-                # 추출한 정보를 리스트에 딕셔너리 형태로 추가
+                if link_tag:
+                    link = link_tag.get('href', "")
+                    # data-ref-goodsno 속성이 있으면 가져오고, 없으면 URL에서 추출 시도
+                    if link_tag.has_attr('data-ref-goodsno'):
+                        pid = link_tag['data-ref-goodsno']
+
+                # 리스트에 추가
                 data_list.append({
                     'ID': pid,
                     '상품명': name,
@@ -99,8 +105,9 @@ def main():
                     '할인율': discount,
                     'URL': link
                 })
+
             except Exception as e:
-                # 특정 상품 하나에서 에러가 나도 멈추지 않고 다음 상품으로 넘어감
+                print(f"⚠️ 상품 파싱 중 에러: {e}")
                 continue
 
         # 7. 데이터 저장 (CSV)
