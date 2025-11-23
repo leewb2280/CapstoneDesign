@@ -1,12 +1,12 @@
 # gpt_api.py
 """
 [GPT API 통신 담당]
-OpenAI Vision API와 통신하여 이미지를 분석하고 피부 상태 점수를 받아오는 모듈입니다.
+OpenAI API와 통신하는 모든 기능을 전담하는 모듈입니다.
 
 기능:
-1. 이미지 인코딩 (File -> Base64)
-2. OpenAI API 호출 (GPT-4 Vision)
-3. 응답 파싱 (JSON Parsing)
+1. analyze_skin_image: 피부 사진 분석 (Vision)
+2. analyze_product_tags: 제품 1개 태그 분석 (Chat)
+3. analyze_batch_product_tags: 제품 여러 개 배치 분석 (Chat Batch) - [NEW]
 """
 
 import os
@@ -33,20 +33,11 @@ except Exception as e:
 
 
 # ==============================================================================
-# 1. 이미지 처리 (Image Processing)
+# 1. 이미지 처리 및 분석 (Vision)
 # ==============================================================================
 
 def encode_image_to_base64(image_path: str) -> str:
-    """
-    이미지 파일을 읽어 Base64 문자열로 인코딩합니다.
-    (OpenAI API 전송용)
-
-    Args:
-        image_path (str): 이미지 파일 경로
-
-    Returns:
-        str: Base64로 인코딩된 이미지 문자열 (실패 시 None)
-    """
+    """이미지 파일을 Base64 문자열로 변환"""
     try:
         with open(image_path, "rb") as image_file:
             return base64.b64encode(image_file.read()).decode('utf-8')
@@ -55,84 +46,80 @@ def encode_image_to_base64(image_path: str) -> str:
         return None
 
 
-# ==============================================================================
-# 2. GPT API 호출 (API Request)
-# ==============================================================================
-
 def analyze_skin_image(image_path: str) -> dict:
-    """
-    GPT Vision API에 이미지를 전송하여 피부 상태를 분석합니다.
+    """GPT Vision API에 이미지를 전송하여 피부 상태를 분석합니다."""
+    if not client: return None
 
-    Args:
-        image_path (str): 분석할 이미지 파일 경로
-
-    Returns:
-        dict: 피부 분석 결과 (acne, wrinkles 등) 또는 None
-    """
-    if not client:
-        logger.error("⚠️ OpenAI 클라이언트가 설정되지 않았습니다. (.env 확인 필요)")
-        return None
-
-    # 1. 이미지 인코딩
     base64_image = encode_image_to_base64(image_path)
-    if not base64_image:
-        return None
+    if not base64_image: return None
 
     try:
-        # 2. API 호출
-        logger.info(f"📤 GPT 분석 요청 시작 ({GPT_MODEL_NAME})...")
-
+        logger.info(f"📤 GPT 피부 분석 요청 시작...")
         response = client.chat.completions.create(
             model=GPT_MODEL_NAME,
             messages=[
-                {
-                    "role": "system",
-                    "content": GPT_SYSTEM_PROMPT
-                },
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": "이 피부 이미지를 분석해서 JSON 포맷으로 점수를 출력해줘."},
-                        {
-                            "type": "image_url",
-                            "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}
-                        }
-                    ]
-                }
+                {"role": "system", "content": GPT_SYSTEM_PROMPT},
+                {"role": "user", "content": [
+                    {"type": "text", "text": "이 피부를 분석해서 JSON 형식으로 점수를 알려줘."},
+                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
+                ]}
             ],
-            max_tokens=1024,
-            temperature=0.0,  # 일관된 분석을 위해 0으로 설정
-            response_format={"type": "json_object"}  # JSON 응답 강제
+            max_tokens=500,
+            response_format={"type": "json_object"}
         )
-
-        # 3. 응답 처리
-        result_text = response.choices[0].message.content
-        parsed_result = json.loads(result_text)
-
-        logger.info("✅ GPT 분석 완료")
-        return parsed_result
+        return json.loads(response.choices[0].message.content)
 
     except Exception as e:
-        logger.error(f"⚠️ GPT API 호출 중 오류 발생: {e}")
+        logger.error(f"⚠️ GPT 피부 분석 실패: {e}")
         return None
 
 
 # ==============================================================================
-# 3. 테스트 코드 (Local Test)
+# 2. 텍스트 분석 (Chat Completion)
 # ==============================================================================
-if __name__ == "__main__":
-    print("\n🧪 [테스트 모드] gpt_api.py 직접 실행")
 
-    # 테스트할 이미지 경로 (실제 파일이 있어야 함)
-    TEST_IMG = "image-data/test/images/acne-5_jpeg.rf.2d6671715f0149df7b494c4d3f12a98b.jpg"
+def analyze_product_tags(name: str, category: str) -> dict:
+    """(단건 처리용) 제품 1개의 태그 분석"""
+    # ... (기존 코드 유지하거나 아래 배치 함수를 활용해도 됨)
+    # 여기서는 일단 둡니다.
+    pass
 
-    if os.path.exists(TEST_IMG):
-        result = analyze_skin_image(TEST_IMG)
-        if result:
-            print("\n🎉 분석 결과:")
-            print(json.dumps(result, indent=2, ensure_ascii=False))
-        else:
-            print("\n💥 분석 실패 (로그 확인)")
-    else:
-        print(f"\n⚠️ 테스트 이미지가 없습니다: {TEST_IMG}")
-        print("   경로를 수정하거나 파일을 넣어주세요.")
+
+def analyze_batch_product_tags(batch_data: list) -> dict:
+    """
+    [배치 처리용] 제품 리스트(여러 개)를 받아 한 번에 태그를 분석합니다.
+
+    Args:
+        batch_data (list): [(id, name, category), ...] 형태의 튜플 리스트
+
+    Returns:
+        dict: { "제품ID": {"tags": [], "ingredients": []}, ... }
+    """
+    if not client: return {}
+
+    # 프롬프트 구성을 위한 문자열 변환
+    items_str = "\n".join([f"- ID:{p[0]} Name:{p[1]} Cat:{p[2]}" for p in batch_data])
+
+    prompt = f"""
+    Analyze these skincare products.
+    {items_str}
+
+    Task: Extract 'ingredients' and select 'tags' (e.g., soothing, moisturizing, anti-aging, oily-skin, dry-skin, sensitive, bha, retinol, vitamin).
+    Return JSON: {{ "ID": {{"tags": [], "ingredients": []}} }}
+    """
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You are a skincare data analyst."},
+                {"role": "user", "content": prompt}
+            ],
+            response_format={"type": "json_object"},
+            temperature=0.3
+        )
+        return json.loads(response.choices[0].message.content)
+
+    except Exception as e:
+        logger.error(f"⚠️ GPT 배치 분석 실패: {e}")
+        return {}

@@ -113,11 +113,11 @@ RULES = {
 
     # [피부 규칙] 측정된 피부 상태(유분, 트러블 등)에 따른 가중치
     "skin_rules": {
-        "sebum_high": {"SebumGel": 25, "Heavy_Oil": -15},
-        "acne_high": {"BHA_Azelaic": 25, "Occlusive": -10},
-        "redness_high": {"SoothingFF": 30, "Strong_Acid": -40, "High_Retinol": -30},
-        "wrinkle_high": {"Retinol_PM": 20},
-        "dryness_high": {"Ceramide_HA": 25},
+        "sebum_high":   {"SebumGel": 15, "Heavy_Oil": -10},
+        "acne_high":    {"BHA_Azelaic": 20, "Occlusive": -5},
+        "redness_high": {"SoothingFF": 15, "Strong_Acid": -20},
+        "wrinkle_high": {"Retinol_PM": 40, "Rich_Moist": 20},
+        "dryness_high": {"Ceramide_HA": 20},
     },
 
     # [안전 규칙] 특정 조건에서 추천 제외(Blacklist)

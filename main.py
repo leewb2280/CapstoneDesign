@@ -20,6 +20,10 @@ from pydantic import BaseModel
 from services.skin_analyzer import perform_skin_analysis
 from services.skin_advisor import run_skin_advisor
 from services.data_collector import run_data_collection
+from core.utils import (
+    register_user_db, authenticate_user_db, get_user_history_db,
+    create_user_table, check_user_exists_db
+)
 
 # 로깅 설정 (서버 로그를 더 잘 보기 위해)
 logging.basicConfig(level=logging.INFO)
@@ -45,6 +49,8 @@ app = FastAPI(
     version="1.0.0",
     openapi_tags=tags_metadata
 )
+
+create_user_table()
 
 # [중요] CORS 설정 (앱/웹 접속 허용)
 app.add_middleware(
@@ -77,6 +83,12 @@ class RecommendRequest(BaseModel):
     analysis_id: int
     lifestyle: LifestyleData
     user_pref: UserPref
+
+
+class AuthRequest(BaseModel):
+    user_id: str
+    password: str
+    name: str = None
 
 
 # ==========================================
@@ -171,6 +183,9 @@ async def analyze_skin_endpoint(
     """
     [Step 1] 앱에서 사진과 유수분 값을 받아 분석을 수행합니다.
     """
+    if not check_user_exists_db(user_id):
+        raise HTTPException(status_code=401, detail="존재하지 않는 회원입니다. 먼저 회원가입을 해주세요.")
+
     file_path = ""
     try:
         # 1. 파일 저장
@@ -216,6 +231,9 @@ async def recommend_endpoint(req: RecommendRequest):
     """
     logger.info(f"📥 추천 요청: User {req.user_id}, ID {req.analysis_id}")
 
+    if not check_user_exists_db(req.user_id):
+        raise HTTPException(status_code=401, detail="존재하지 않는 회원입니다. 먼저 회원가입을 해주세요.")
+
     try:
         # Pydantic v2 호환 (.model_dump)
         final_result = run_skin_advisor(
@@ -250,6 +268,38 @@ async def update_products_endpoint(background_tasks: BackgroundTasks, secret_key
     background_tasks.add_task(run_data_collection)
     return {"message": "Update started in background", "status": "processing"}
 
+
+@app.post("/signup", tags=["Auth"])
+async def signup_endpoint(req: AuthRequest):
+    """회원가입 API"""
+    if not req.user_id or not req.password:
+        raise HTTPException(status_code=400, detail="ID와 비밀번호를 입력하세요.")
+
+    success = register_user_db(req.user_id, req.password, req.name)
+    if not success:
+        raise HTTPException(status_code=400, detail="이미 존재하는 아이디입니다.")
+
+    return {"message": "회원가입 성공!", "user_id": req.user_id}
+
+
+@app.post("/login", tags=["Auth"])
+async def login_endpoint(req: AuthRequest):
+    """로그인 API"""
+    user = authenticate_user_db(req.user_id, req.password)
+    if not user:
+        raise HTTPException(status_code=401, detail="아이디 또는 비밀번호가 틀렸습니다.")
+
+    return {"message": "로그인 성공", "user_info": user}
+
+
+@app.get("/history/{user_id}", tags=["Auth"])
+async def history_endpoint(user_id: str):
+    """
+    [기록 조회] 특정 아이디의 과거 진단 기록을 불러옵니다.
+    앱에서 로그인 후 '마이페이지' 같은 곳에서 사용합니다.
+    """
+    history = get_user_history_db(user_id)
+    return {"user_id": user_id, "history": history}
 
 # ==========================================
 # 5. 서버 실행 진입점 (Main)

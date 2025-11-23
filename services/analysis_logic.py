@@ -107,37 +107,42 @@ class SkinCareAdvisor:
     # ==========================================================================
 
     def recommend_products(self, product_db: list) -> dict:
-        """
-        [메인 추천 함수] 모든 제품에 대해 적합도 점수를 매기고 Top 3를 선정합니다.
-
-        Args:
-            product_db (list): 제품 정보 딕셔너리 리스트
-
-        Returns:
-            dict: {"top3": [...], "reasons": [...]}
-        """
         scored_list = []
-
         for p in product_db:
-            # 개별 제품 채점
             score, detail, evidences = self._score_single_product(p)
-
-            # 0점 이상인 유의미한 제품만 후보 등록
             if score > 0:
                 scored_list.append({
-                    "product": p,
-                    "score": round(score, 2),
-                    "detail": detail,
-                    "evidences": evidences
+                    "product": p, "score": round(score, 2),
+                    "detail": detail, "evidences": evidences
                 })
 
-        # 점수 내림차순 정렬 후 상위 3개 추출
+        # 점수순 정렬
         scored_list.sort(key=lambda x: x["score"], reverse=True)
-        top3 = scored_list[:3]
+
+        # [알고리즘 수정] 카테고리별로 1등만 뽑아서 Top 3 구성하기
+        final_top3 = []
+        seen_categories = set()
+
+        for item in scored_list:
+            cat = item["product"]["official_category"]
+            # 이미 뽑은 카테고리라면 패스 (단, Top 3가 안 찼으면 계속)
+            if cat not in seen_categories:
+                final_top3.append(item)
+                seen_categories.add(cat)
+
+            if len(final_top3) >= 3:
+                break
+
+        # 만약 카테고리가 너무 겹쳐서 3개를 못 채웠으면 나머지도 채움
+        if len(final_top3) < 3:
+            for item in scored_list:
+                if item not in final_top3:
+                    final_top3.append(item)
+                    if len(final_top3) >= 3: break
 
         return {
-            "top3": [self._format_product_result(item, i + 1) for i, item in enumerate(top3)],
-            "reasons": self._summarize_reasons(top3)
+            "top3": [self._format_product_result(item, i + 1) for i, item in enumerate(final_top3)],
+            "reasons": self._summarize_reasons(final_top3)
         }
 
     def _score_single_product(self, p: dict):
@@ -240,6 +245,23 @@ class SkinCareAdvisor:
         if (pref == "gel" and "gel" in tags) or (pref == "cream" and "cream" in tags):
             score += 5
             evidences.append(f"선호 제형({pref}) 일치(+5점)")
+
+        # ---------------------------------------------------------
+        # [D] 나이 기반 가산점 (Age Bonus)
+        # ---------------------------------------------------------
+        user_age = self.user.get("age", 25)
+
+        # 30대 이상이면 '탄력/주름/레티놀' 제품에 가산점 부여
+        if user_age >= 30:
+            if any(t in tags for t in ["anti-aging", "retinoid", "collagen", "rich"]):
+                score += 15
+                evidences.append(f"30대 피부 관리({user_age}세) → 안티에이징 케어(+15점)")
+
+        # 20대 초반이고 지성이면 '산뜻한' 제품에 가산점
+        elif user_age <= 24 and self.metrics["sebum"] > 50:
+            if any(t in tags for t in ["light", "fresh", "pore-care"]):
+                score += 10
+                evidences.append(f"20대 피지 관리({user_age}세) → 산뜻한 케어(+10점)")
 
         return score, detail, evidences
 

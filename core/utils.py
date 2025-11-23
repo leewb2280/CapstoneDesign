@@ -293,3 +293,124 @@ def save_recommendation_to_db(user_id: str, analysis_id: int, skin_age: float,
 
     except Exception as e:
         logger.error(f"⚠️ [DB 저장 실패] {e}")
+
+
+# ==============================================================================
+# 4. 사용자 관리 및 기록 조회 (User & History)
+# ==============================================================================
+
+def create_user_table():
+    """사용자 정보(아이디/비밀번호)를 저장할 테이블 생성"""
+    try:
+        conn = psycopg2.connect(**DB_CONFIG)
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                user_id VARCHAR(50) PRIMARY KEY,
+                password TEXT NOT NULL,
+                name TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+        conn.commit()
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        logger.error(f"사용자 테이블 생성 실패: {e}")
+
+
+def register_user_db(user_id, password, name):
+    """회원가입: DB에 사용자 추가"""
+    try:
+        conn = psycopg2.connect(**DB_CONFIG)
+        cursor = conn.cursor()
+
+        # 이미 있는지 확인
+        cursor.execute("SELECT user_id FROM users WHERE user_id = %s", (user_id,))
+        if cursor.fetchone():
+            return False  # 이미 존재함
+
+        cursor.execute("INSERT INTO users (user_id, password, name) VALUES (%s, %s, %s)",
+                       (user_id, password, name))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"회원가입 실패: {e}")
+        return False
+
+
+def authenticate_user_db(user_id, password):
+    """로그인: 아이디/비번 일치 확인"""
+    try:
+        conn = psycopg2.connect(**DB_CONFIG)
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT password, name FROM users WHERE user_id = %s", (user_id,))
+        row = cursor.fetchone()
+
+        cursor.close()
+        conn.close()
+
+        if row and row[0] == password:  # 비밀번호 일치 (실무에선 해시 암호화 필수)
+            return {"user_id": user_id, "name": row[1]}
+        return None
+    except Exception as e:
+        logger.error(f"로그인 검사 실패: {e}")
+        return None
+
+
+def get_user_history_db(user_id):
+    """특정 사용자의 과거 추천 기록 조회"""
+    try:
+        conn = psycopg2.connect(**DB_CONFIG)
+        cursor = conn.cursor()
+
+        # 최근 기록 5개만 조회
+        query = """
+            SELECT id, skin_age, top3_products, created_at 
+            FROM recommendation_log 
+            WHERE user_id = %s 
+            ORDER BY id DESC LIMIT 5
+        """
+        cursor.execute(query, (user_id,))
+        rows = cursor.fetchall()
+
+        cursor.close()
+        conn.close()
+
+        history = []
+        for r in rows:
+            # DB에 저장된 JSON 문자열을 다시 객체로 변환
+            top3 = json.loads(r[2]) if r[2] else []
+            history.append({
+                "record_id": r[0],
+                "skin_age": r[1],
+                "top3_names": [p['name'] for p in top3],  # 제품 이름만 간단히
+                "date": str(r[3])
+            })
+
+        return history
+    except Exception as e:
+        logger.error(f"기록 조회 실패: {e}")
+        return []
+
+
+def check_user_exists_db(user_id):
+    """아이디가 DB에 진짜 존재하는지 확인"""
+    try:
+        conn = psycopg2.connect(**DB_CONFIG)
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1 FROM users WHERE user_id = %s", (user_id,))
+        exists = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        return True if exists else False
+    except:
+        return False
+
+# 이 파일이 실행될 때 테이블이 없으면 생성하도록 설정
+if __name__ == "__main__":
+    create_user_table()
+    print("✅ 사용자 테이블 확인 완료")
