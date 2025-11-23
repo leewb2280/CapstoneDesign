@@ -92,9 +92,9 @@ ALTER USER postgres PASSWORD 'password';
 프로젝트 폴더 안에 .env 파일을 생성하고 API 키를 입력합니다.
 ```bash
 nano .env
-(.env 파일 내용 예시)
 ```
 
+.env 파일 내용
 ```Ini, TOML
 # Database (라즈베리파이 로컬)
 DB_HOST=localhost
@@ -125,4 +125,7 @@ python data_collector.py
 # 가상환경이 켜진 상태에서 실행
 python main.py
 ```
-서버가 정상 실행되면 http://localhost:8000 에서 접속 가능합니다. (내부에서만)
+서버가 정상 실행되면 
+테스트 사이트: http://localhost:8000
+코드 확인 사이트: http://localhost:8000/docs
+에서 접속 가능합니다. (내부에서만)
