@@ -21,13 +21,13 @@ load_dotenv()
 # 1. 파일 경로 설정 (File Paths)
 # =========================================
 # 프로그램이 읽거나 쓰는 파일들의 경로를 상수화합니다.
-USER_PREFS_JSON = "user_prefs.json"      # 사용자 선호도 저장
-LIFESTYLE_JSON = "lifestyle.json"        # 생활습관 저장
-LOG_PATH = "weekly_log.csv"  # ML 학습용 로그 데이터
-MODEL_PATH = "trouble_model.pkl"  # 학습된 트러블 예측 모델
-CSV_DATA_PATH = "oliveyoung_top30_verified.csv"  # 제품 데이터베이스
-WEEKLY_TREND_IMG = "weekly_trend.png"    # (옵션) 그래프 이미지
-RESULT_JSON_PATH = "today_result.json"  # 최종 결과 JSON 저장 경로
+USER_PREFS_JSON = "user_prefs.json"       # 사용자 선호도 저장
+LIFESTYLE_JSON = "lifestyle.json"         # 생활습관 저장
+LOG_PATH = "weekly_log.csv"               # ML 학습용 로그 데이터
+MODEL_PATH = "trouble_model.pkl"          # 학습된 트러블 예측 모델
+CSV_DATA_PATH = "expanded_product_db.csv" # 제품 데이터베이스
+WEEKLY_TREND_IMG = "weekly_trend.png"     # (옵션) 그래프 이미지
+RESULT_JSON_PATH = "today_result.json"    # 최종 결과 JSON 저장 경로
 
 
 # =========================================
@@ -287,16 +287,3 @@ GPT_SYSTEM_PROMPT = """
   "redness": [홍조/붉은기 점수]
 }
 """
-
-# =========================================
-# 7. 스크래핑 설정 (Scraping Config)
-# =========================================
-
-# 올리브영 랭킹 페이지 URL
-OLIVEYOUNG_URL = "https://www.oliveyoung.co.kr/store/main/getBestList.do?dispCatNo=900000100100001&fltDispCatNo=10000010001&pageIdx=1&rowsPerPage=8&t_page=%EC%B9%B4%ED%85%8C%EA%B3%A0%EB%A6%AC%EA%B4%80&t_click=%EB%9E%AD%ED%82%B9BEST%EC%83%81%ED%92%88%EB%B8%8C%EB%9E%9C%EB%93%9C_%EC%9D%B8%EA%B8%B0%EC%83%81%ED%92%88%EB%B8%8C%EB%9E%9C%EB%93%9C_%EC%9D%B8%EA%B8%B0%EC%83%81%ED%92%88%EB%8D%94%EB%B3%B4%EA%B8%B0"
-
-# 크롤링 데이터 저장 파일명
-SCRAPED_DATA_PATH = 'oliveyoung_skincare_data_final.csv'
-
-# 리눅스(라즈베리파이)용 크롬 드라이버 경로
-LINUX_DRIVER_PATH = '/usr/bin/chromedriver'
