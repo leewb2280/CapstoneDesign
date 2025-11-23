@@ -1,16 +1,7 @@
 ### github에서 제외할 파일들
 .idea
 .venv
-image-data
 .env
-lifestyle.json
-on_device_ai.py
-result_image.jpg
-today_result.json
+image-data
 trouble_model.pkl
-user_prefs.json
-weekly_log.csv
-weekly_trend.png
-oliveyoung_skincare_data_final.csv
-oliveyoung_top30_verified.csv
-expanded_product_db.csv
+temp_uploads

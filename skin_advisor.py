@@ -1,34 +1,46 @@
 # skin_advisor.py
 """
 [피부 맞춤형 조언 및 처방 담당]
-이 파일은 프로그램의 '지휘자(Orchestrator)' 역할을 합니다.
-수집된 데이터(DB, 날씨, 설문)를 모두 모아 Engine에 전달하고,
-최종 결과를 사용자에게 보여주고 DB에 저장합니다.
+API 서버의 요청을 받아, 수집된 데이터를 종합하여
+최종적인 피부 나이 진단, 화장품 추천, 관리 루틴을 생성하는 모듈입니다.
 """
 
-import sys
 import os
+import logging
 import datetime
-import numpy as np  # [수정] numpy 타입 감지를 위해 추가
+import json
+import numpy as np
 from dotenv import load_dotenv
 
-# 설정 및 유틸리티 모듈 임포트
+# 설정 및 유틸리티
 from config import *
 from utils import (
-    load_json, save_json, load_products_csv, get_current_weather,
-    log_daily_status, predict_trouble_proba,
-    collect_lifestyle_interactive, ask_pref_texture,
-    get_latest_skin_data_from_db,
+    load_products_from_db,
+    get_current_weather,
+    predict_trouble_proba,
+    get_skin_data_by_id,
     save_recommendation_to_db
 )
-# 핵심 로직 엔진 임포트
+# 분석 로직 엔진
 from analysis_logic import SkinCareAdvisor
 
+# 로깅 설정
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# =========================================
-# Numpy 타입을 파이썬 기본 타입으로 변환하는 함수
-# =========================================
+load_dotenv()
+OWM_API_KEY = os.getenv("OWM_API_KEY")
+
+
+# ==============================================================================
+# 1. 헬퍼 함수 (Helper Functions)
+# ==============================================================================
+
 def convert_numpy_to_native(obj):
+    """
+    Numpy 데이터 타입(int64, float32 등)을 파이썬 기본 타입으로 변환합니다.
+    (JSON 직렬화 에러 방지용)
+    """
     if isinstance(obj, np.integer):
         return int(obj)
     elif isinstance(obj, np.floating):
@@ -42,143 +54,132 @@ def convert_numpy_to_native(obj):
     return obj
 
 
-def main():
-    # =========================================
-    # 1. 초기 설정
-    # =========================================
-    load_dotenv()  # .env 파일에서 API 키 로드
-    api_key = os.getenv("OWM_API_KEY")
+# ==============================================================================
+# 2. 메인 실행 함수 (Main Logic)
+# ==============================================================================
 
-    print("=== 🧴 AI 맞춤형 스킨케어 어드바이저 시작 ===")
+def run_skin_advisor(user_id: str, analysis_id: int, lifestyle: dict, user_pref: dict) -> dict:
+    """
+    [핵심 로직] 사용자 정보와 분석 데이터를 결합하여 최종 처방을 내립니다.
 
-    # =========================================
-    # 2. 데이터 수집 단계 (Data Collection)
-    # =========================================
+    Args:
+        user_id (str): 사용자 ID
+        analysis_id (int): 1단계에서 생성된 분석 로그 ID
+        lifestyle (dict): 생활습관 설문 데이터
+        user_pref (dict): 사용자 선호도 데이터
 
-    # (1) 생활습관
-    saved_life = load_json(LIFESTYLE_JSON)
-    life_style = collect_lifestyle_interactive(saved_life)
-    save_json(LIFESTYLE_JSON, life_style)
+    Returns:
+        dict: 최종 추천 결과 (피부나이, 추천제품, 루틴, 트러블예측)
+    """
+    logger.info(f"🧠 [Advisor] 심층 분석 시작 (User: {user_id}, AnalysisID: {analysis_id})")
 
-    # (2) 사용자 선호
-    saved_prefs = load_json(USER_PREFS_JSON, default={"pref_texture": "gel", "age": 23})
-    new_texture = ask_pref_texture(saved_prefs.get("pref_texture", "gel"))
+    # -------------------------------------------------------
+    # Step 1. 데이터 수집 (Data Aggregation)
+    # -------------------------------------------------------
 
-    user_data = {"age": saved_prefs.get("age", 23), "pref_texture": new_texture}
-    save_json(USER_PREFS_JSON, user_data)
+    # 1. 피부 분석 데이터 로드 (DB)
+    camera_data = get_skin_data_by_id(analysis_id)
 
-    # (3) 피부 데이터 (DB 로드)
-    print("\n📸 [피부 데이터 로드]")
-    db_data = get_latest_skin_data_from_db()
-
-    analysis_id = None
-
-    if db_data:
-        analysis_id = db_data.get("id")
-        camera_data = db_data
-        print(f"✅ DB 분석 데이터(ID:{analysis_id})를 사용합니다.")
-    else:
-        print("⚠️ DB 데이터를 찾을 수 없어 테스트용 더미 데이터를 사용합니다.")
+    if not camera_data:
+        logger.warning(f"❌ DB에서 ID({analysis_id})를 찾을 수 없습니다. 더미 데이터를 사용합니다.")
         camera_data = {
-            "tone": 55, "sebum": 70, "moisture": 35, "acne": 65,
-            "wrinkle": 30, "pore": 60, "pigmentation": 40, "redness": 45
+            "tone": 50, "sebum": 50, "moisture": 50, "acne": 50,
+            "wrinkle": 50, "pore": 50, "pigmentation": 50, "redness": 50
         }
 
-    # (4) 날씨 환경
-    env_data = get_current_weather(api_key)
-    print(f"\n[환경] 기온 {env_data['temperature']}도, 습도 {env_data['humidity']}%, UV {env_data['uv']}")
+    # 2. 날씨 정보 로드 (API)
+    env_data = get_current_weather(OWM_API_KEY)
 
-    # [Payload 통합]
+    # 3. 분석용 Payload 생성
     payload = {
         "camera": camera_data,
         "env": env_data,
-        "lifestyle": life_style,
-        "user": user_data,
+        "lifestyle": lifestyle,
+        "user": user_pref,
         "time": {"hour": datetime.datetime.now().hour}
     }
 
-    # =========================================
-    # 3. AI 엔진 가동 (Analysis & Recommendation)
-    # =========================================
+    # -------------------------------------------------------
+    # Step 2. AI 엔진 가동 (Analysis & Recommendation)
+    # -------------------------------------------------------
     advisor = SkinCareAdvisor(payload)
 
     # 1. 피부 나이 계산
     skin_age = int(advisor.calc_skin_age())
-    print(f"\n🔎 분석 결과: 피부 나이 예측 {skin_age}세")
 
-    # 2. 제품 데이터 로드 및 추천 실행
-    product_db = load_products_csv(CSV_DATA_PATH)
-    if not product_db:
-        print(f"⚠️ {CSV_DATA_PATH} 파일이 없습니다. 추천을 건너뜁니다.")
-        return
-
+    # 2. 제품 추천
+    # (최신 재고 반영을 위해 매번 DB에서 로드)
+    product_db = load_products_from_db()
     rec_result = advisor.recommend_products(product_db)
 
-    # =========================================
-    # 4. 결과 출력 (Console Output)
-    # =========================================
-    print("\n🏆 [TOP 3 추천 제품]")
-    for item in rec_result["top3"]:
-        print(f"{item['rank']}위: {item['name']} ({item['brand']})")
-        print(f"   └ 점수: {item['score']}점 | 이유: {', '.join(item['reasons'])}")
-
-    print("\n💡 [추천 이유 요약]")
-    for r in rec_result["reasons"]:
-        print(f"- {r}")
-
-    # 5. 루틴 텍스트 생성
+    # 3. 루틴 텍스트 생성
     routine = advisor.generate_routine_text(rec_result["top3"])
-    print("\n📅 [오늘의 루틴]")
-    print("\n".join(routine["am"]))
-    print("-" * 30)
-    print("\n".join(routine["pm"]))
 
-    # 6. 머신러닝 트러블 예측
+    # 4. 트러블 발생 확률 예측 (ML 모델)
     ml_pred = predict_trouble_proba(payload)
-    print(f"\n🔮 [AI 트러블 예측] {ml_pred['msg']}")
+    raw_prob = float(ml_pred.get("prob", 0.0) or 0.0)
 
-    # 확률값 가져올 때 float() 강제 변환
-    raw_prob = ml_pred.get("prob", 0.0)
-    if raw_prob is None:
-        raw_prob = 0.0
-    trouble_prob_val = float(raw_prob)
+    # -------------------------------------------------------
+    # Step 3. 데이터 정리 및 저장 (Cleanup & Save)
+    # -------------------------------------------------------
 
-    # =========================================
-    # 7. 결과 저장 (Logging & DB)
-    # =========================================
-
-    # DB에 저장하기 전에 모든 데이터를 깨끗한 파이썬 타입으로 변환
-    # (rec_result 안에 numpy 점수가 들어있을 수 있으므로 전체 세탁)
+    # 1. Numpy 타입 제거 (JSON 변환 안전하게)
     clean_rec_result = convert_numpy_to_native(rec_result)
     clean_routine = convert_numpy_to_native(routine)
 
-    # (1) ML 학습용 CSV 로그 저장
-    log_daily_status(clean_rec_result, payload)
+    # 2. 결과 DB 저장
+    save_recommendation_to_db(
+        user_id=user_id,
+        analysis_id=analysis_id,
+        skin_age=skin_age,
+        rec_result=clean_rec_result,
+        routine=clean_routine,
+        trouble_prob=raw_prob
+    )
 
-    # (2) JSON 파일 저장
-    save_json(RESULT_JSON_PATH, {
-        "date": str(datetime.date.today()),
-        "analysis_id": analysis_id,
+    logger.info(f"✨ [Advisor] 분석 완료 (피부나이: {skin_age}세, 트러블확률: {int(raw_prob * 100)}%)")
+
+    # 3. 최종 결과 반환
+    return {
+        "user_id": user_id,
         "skin_age": skin_age,
-        "recommendation": clean_rec_result,
-        "routine": clean_routine
-    })
-
-    # (3) PostgreSQL DB에 저장
-    if analysis_id:
-        print("💾 DB 저장을 시도합니다...")
-        save_recommendation_to_db(
-            analysis_id=analysis_id,
-            skin_age=skin_age,
-            rec_result=clean_rec_result,
-            routine=clean_routine,
-            trouble_prob=trouble_prob_val
-        )
-    else:
-        print("⚠️ 분석 ID가 없어 DB에 처방 결과를 연결하여 저장할 수 없습니다.")
-
-    print("\n✅ 모든 결과 처리가 완료되었습니다.")
+        "top3": clean_rec_result["top3"],
+        "routine": clean_routine,
+        "trouble_prediction": ml_pred["msg"],
+        "trouble_prob": raw_prob
+    }
 
 
+# ==============================================================================
+# 3. 테스트 코드 (Local Test)
+# ==============================================================================
 if __name__ == "__main__":
-    main()
+    print("\n🧪 [테스트 모드] skin_advisor.py 직접 실행")
+
+    # 1. 테스트용 가짜 데이터
+    TEST_USER = "test_advisor_user"
+    TEST_ANALYSIS_ID = 1  # 주의: DB에 실제로 존재하는 ID여야 정확함
+
+    TEST_LIFESTYLE = {
+        "sleep_hours_7d": 6.5,
+        "water_intake_ml": 1200,
+        "wash_freq_per_day": 2,
+        "wash_temp": "hot",
+        "sensitivity": "yes"
+    }
+
+    TEST_PREF = {
+        "age": 24,
+        "pref_texture": "cream"
+    }
+
+    # 2. 실행
+    try:
+        result = run_skin_advisor(TEST_USER, TEST_ANALYSIS_ID, TEST_LIFESTYLE, TEST_PREF)
+
+        # 3. 결과 출력
+        print("\n✅ 최종 결과 JSON:")
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+
+    except Exception as e:
+        print(f"\n💥 오류 발생: {e}")

@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 스킨케어 서버 테스트</title>
+    <style>
+        body { font-family: 'Noto Sans KR', sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; background-color: #f4f4f9; }
+        .card { background: white; padding: 20px; margin-bottom: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        h2 { border-bottom: 2px solid #eee; padding-bottom: 10px; color: #333; }
+        label { display: block; margin-top: 10px; font-weight: bold; }
+        input, select, button { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; }
+        button { background-color: #007bff; color: white; border: none; cursor: pointer; font-weight: bold; margin-top: 15px; }
+        button:hover { background-color: #0056b3; }
+        button.secondary { background-color: #6c757d; }
+        pre { background: #272822; color: #f8f8f2; padding: 15px; border-radius: 5px; overflow-x: auto; white-space: pre-wrap; }
+        .hidden { display: none; }
+        .badge { display: inline-block; padding: 5px 10px; background: #e2e6ea; border-radius: 20px; margin-right: 5px; font-size: 0.9em; }
+    </style>
+</head>
+<body>
+
+    <h1>🧴 AI 스킨케어 서버 테스트 센터</h1>
+
+    <div class="card">
+        <h3>🛠️ 관리자 도구</h3>
+        <button class="secondary" onclick="updateProducts()">최신 제품 데이터 업데이트 (크롤링 시작)</button>
+    </div>
+
+    <div class="card">
+        <h2>STEP 1. 피부 분석 (사진 업로드)</h2>
+        <label>사용자 ID</label>
+        <input type="text" id="userId" value="test_user" placeholder="ID 입력">
+
+        <label>현재 수분감 (0~100)</label>
+        <input type="number" id="moisture" value="30">
+
+        <label>현재 유분감 (0~100)</label>
+        <input type="number" id="sebum" value="70">
+
+        <label>얼굴 사진 선택</label>
+        <input type="file" id="imageFile" accept="image/*">
+
+        <button onclick="reqAnalyze()">📸 분석 시작하기</button>
+
+        <div id="result1Area" class="hidden">
+            <h4>📊 1단계 분석 결과</h4>
+            <pre id="result1"></pre>
+        </div>
+    </div>
+
+    <div class="card hidden" id="step2Card">
+        <h2>STEP 2. 맞춤형 처방 (설문)</h2>
+        <p>✅ 분석 ID: <span id="savedAnalysisId" class="badge">None</span> 가 자동 입력됨</p>
+
+        <label>수면 시간 (시간)</label>
+        <input type="number" id="sleep" value="7.0">
+
+        <label>물 섭취량 (ml)</label>
+        <input type="number" id="water" value="1500">
+
+        <label>세안 횟수 (하루)</label>
+        <input type="number" id="washFreq" value="2">
+
+        <label>피부 민감 여부</label>
+        <select id="sensitivity">
+            <option value="no">아니오 (건강함)</option>
+            <option value="yes">예 (민감함)</option>
+        </select>
+
+        <label>나이</label>
+        <input type="number" id="age" value="24">
+
+        <label>선호 제형</label>
+        <select id="texture">
+            <option value="gel">젤 (가벼움)</option>
+            <option value="cream">크림 (촉촉함)</option>
+            <option value="lotion">로션 (부드러움)</option>
+        </select>
+
+        <button onclick="reqRecommend()">💊 최종 처방 받기</button>
+
+        <div id="result2Area" class="hidden">
+            <h4>🏆 최종 추천 결과</h4>
+            <pre id="result2"></pre>
+        </div>
+    </div>
+
+    <script>
+        let currentAnalysisId = null;
+
+        // 1단계: 분석 요청 함수
+        async function reqAnalyze() {
+            const userId = document.getElementById('userId').value;
+            const fileInput = document.getElementById('imageFile');
+
+            if(fileInput.files.length === 0) { alert("사진을 선택해주세요!"); return; }
+
+            const formData = new FormData();
+            formData.append("user_id", userId);
+            formData.append("moisture", document.getElementById('moisture').value);
+            formData.append("sebum", document.getElementById('sebum').value);
+            formData.append("file", fileInput.files[0]);
+
+            try {
+                const res = await fetch('/analyze', { method: 'POST', body: formData });
+                const data = await res.json();
+
+                document.getElementById('result1Area').classList.remove('hidden');
+                document.getElementById('result1').innerText = JSON.stringify(data, null, 2);
+
+                if(data.analysis_id) {
+                    currentAnalysisId = data.analysis_id;
+                    document.getElementById('savedAnalysisId').innerText = currentAnalysisId;
+                    document.getElementById('step2Card').classList.remove('hidden'); // 2단계 열기
+                    alert("1단계 분석 완료! 아래 설문을 진행하세요.");
+                }
+            } catch (err) {
+                alert("에러 발생: " + err);
+            }
+        }
+
+        // 2단계: 추천 요청 함수
+        async function reqRecommend() {
+            if(!currentAnalysisId) { alert("먼저 1단계 분석을 완료해야 합니다."); return; }
+
+            const payload = {
+                "user_id": document.getElementById('userId').value,
+                "analysis_id": currentAnalysisId,
+                "lifestyle": {
+                    "sleep_hours_7d": parseFloat(document.getElementById('sleep').value),
+                    "water_intake_ml": parseInt(document.getElementById('water').value),
+                    "wash_freq_per_day": parseInt(document.getElementById('washFreq').value),
+                    "wash_temp": "normal",
+                    "sensitivity": document.getElementById('sensitivity').value
+                },
+                "user_pref": {
+                    "age": parseInt(document.getElementById('age').value),
+                    "pref_texture": document.getElementById('texture').value
+                }
+            };
+
+            try {
+                const res = await fetch('/recommend', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+
+                document.getElementById('result2Area').classList.remove('hidden');
+                document.getElementById('result2').innerText = JSON.stringify(data, null, 2);
+            } catch (err) {
+                alert("에러 발생: " + err);
+            }
+        }
+
+        // 관리자: 업데이트 함수
+        async function updateProducts() {
+            const formData = new FormData();
+            formData.append("secret_key", "admin1234");
+
+            const res = await fetch('/update-products', { method: 'POST', body: formData });
+            const data = await res.json();
+            alert(data.message);
+        }
+    </script>
+</body>
+</html>

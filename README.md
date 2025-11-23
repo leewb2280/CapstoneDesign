@@ -1,89 +1,128 @@
-# 🧴 AI 맞춤형 스킨케어 어드바이저 (AI SkinCare Advisor)
+# 🧴 AI Skin Advisor (캡스톤 디자인)
+> 라즈베리파이 키오스크 설치 및 실행 가이드
 
-## 📖 프로젝트 소개
-사용자의 피부 상태를 **AI(OpenAI Vision)**로 정밀 분석하고, 현재 위치의 **날씨(OpenWeatherMap)**와 사용자의 생활 습관을 종합적으로 
-고려하여 최적의 화장품과 스킨케어 루틴을 처방해주는 스마트 뷰티 솔루션입니다. 
-라즈베리파이(Raspberry Pi) 기반의 온디바이스(On-Device) 환경에서 작동하도록 설계되었습니다.
+이 문서는 라즈베리파이(Raspberry Pi 4 권장) 환경에서 **AI 피부 분석 키오스크**를 구축하고 실행하는 방법을 설명합니다.
 
-## ✨ 주요 기능
-* **📸 AI 피부 진단:** 카메라로 촬영된 이미지를 분석하여 여드름, 주름, 모공, 색소 침착 등의 상태를 수치화합니다.
-* **🌤️ 환경 맞춤 분석:** 피부 나이를 예측하고, 올리브영 베스트 상품 데이터를 기반으로 사용자에게 꼭 필요한 제품(Top 3)과 아침/저녁 루틴을 추천합니다.
-* **🧴 개인화 처방:** 피부 나이를 예측하고, 사용자에게 꼭 필요한 제품(Top 3)과 아침/저녁 루틴을 추천합니다.
-* **📊 데이터 로깅:** 분석 결과와 처방 기록을 PostgreSQL 데이터베이스에 저장하여 피부 변화를 트래킹합니다.
-* **🕷️ 데이터 자동 수집:** 셀레니움(Selenium)을 이용해 최신 스킨케어 제품 정보를 주기적으로 업데이트합니다.
+---
 
-## 🛠️ 기술 스택
-* **Hardware:** Raspberry Pi 4, Camera Module
-* **Language:** Python 3.x
-* **AI & API:** OpenAI GPT-4o (Vision), OpenWeatherMap API
-* **Database:** PostgreSQL (Local or Docker)
-* **Libraries:** Selenium, Pandas, Psycopg2, NumPy, Requests
+## 🛠️ 1. 하드웨어 준비 (Hardware Setup)
+다음 부품들이 라즈베리파이에 연결되어 있어야 합니다.
+* **Raspberry Pi 4 Model B** (권장)
+* **Pi Camera Module** (CSI 인터페이스 연결)
+* **피부 센서 (유수분 측정기)** (SPI 인터페이스 연결)
+* **터치 디스플레이** (HDMI/DSI 연결)
 
-## 🚀 Raspberry Pi 에서의 설치 및 실행 방법
+---
 
-### 1. 기본 업데이트 (필수)
-패키지 목록을 최신으로 갱신합니다.
+## ⚙️ 2. 라즈베리파이 기본 설정
+터미널을 열고 다음 명령어들을 순서대로 입력하세요.
+
+### 2-1. 시스템 업데이트
 ```bash
-sudo apt-get update
-sudo apt-get upgrade -y
+sudo apt update
+sudo apt upgrade -y
 ```
 
-### 2. 시스템 패키지 설치
-Python 라이브러리 구동에 필요한 시스템 패키지를 설치합니다.
+### 2-2. 인터페이스 활성화 (SPI & Camera)
+피부 센서(SPI)와 카메라 사용을 위해 설정이 필요합니다.
+
 ```bash
-# Numpy, DB, 크롬 드라이버 등 필수 패키지 일괄 설치
-sudo apt-get install -y libopenblas-dev libpq-dev postgresql chromium chromium-driver
+sudo raspi-config
 ```
 
-### 3. 프로젝트 복제 및 설정
+1. Interface Options 선택
+2. SPI -> Yes (활성화)
+3. Camera (Legacy Camera가 아닌 Libcamera 사용 시 별도 설정 불필요, OS 버전에 따라 다름)
+4. Finish 후 재부팅
+
+### 2-3. 필수 시스템 패키지 설치
+카메라 제어 및 수치 계산에 필요한 라이브러리를 설치합니다.
+
 ```bash
-# github 파일 설치
+# libcamera (카메라), libatlas (Numpy 가속), PostgreSQL(DB) 설치
+sudo apt install -y libcamera-apps libatlas-base-dev postgresql postgresql-contrib
+```
+
+---
+
+## 🐍 3. 프로젝트 설치 (Software Setup)
+### 3-1. 프로젝트 클론 및 이동
+```bash
 git clone https://github.com/leewb2280/CapstoneDesign.git
-
-# 설치된 폴더 위치로 이동
 cd CapstoneDesign
+```
 
+### 3-2. 가상환경 생성 및 라이브러리 설치
+시스템 파이썬을 보호하기 위해 가상환경을 사용합니다.
+```bash
 # 가상환경 생성
 python3 -m venv venv
 
 # 가상환경 활성화
 source venv/bin/activate
 
-# Python 라이브러리 설치
+# 필수 라이브러리 설치 (requirements.txt 이용)
 pip install -r requirements.txt
 ```
 
-### 4. 환경변수 설정 (.env)
-프로젝트 루트 경로에 .env 파일을 생성하고 아래 내용을 작성합니다.
+---
+
+## 🗄️ 4. 데이터베이스(PostgreSQL) 설정
+### 4-1. DB 접속 및 유저 생성
+라즈베리파이 로컬에 DB를 구축합니다.
+```bash
+sudo -u postgres psql
+```
+PostgreSQL 프롬프트(postgres=#)가 나오면 아래 명령어를 한 줄씩 입력하세요.
+
+```sql
+-- 비밀번호는 .env 설정과 동일하게 'password'로 설정 (보안상 변경 가능)
+ALTER USER postgres PASSWORD 'password';
+
+-- 데이터베이스가 없다면 생성 (기본 postgres DB 사용 시 생략 가능)
+-- CREATE DATABASE postgres;
+
+-- 종료
+\q
+```
+
+---
+
+## 🔑 5. 환경 변수 설정 (.env)
+프로젝트 폴더 안에 .env 파일을 생성하고 API 키를 입력합니다.
+```bash
+nano .env
+(.env 파일 내용 예시)
+```
+
 ```Ini, TOML
-# API_KEY
-# OpenWeatherMap API Key
-OWM_API_KEY=your_openweathermap_api_key_here
-
-# OpenAI API Key
-OPENAI_API_KEY=sk-proj-your_openai_api_key_here
-
-# PostgreSQL DB 접속 정보
+# Database (라즈베리파이 로컬)
 DB_HOST=localhost
 DB_NAME=postgres
 DB_USER=postgres
-DB_PASSWORD=your_db_password
+DB_PASSWORD=password
 DB_PORT=5432
+
+# API Keys
+NAVER_CLIENT_ID=your_naver_id
+NAVER_CLIENT_SECRET=your_naver_secret
+OPENAI_API_KEY=your_openai_key
+OWM_API_KEY=your_weather_key
+```
+입력 후 Ctrl+O (저장), Enter, Ctrl+X (종료).
+
+---
+
+## 🚀 6. 서버 실행 (Manual Run)
+### 6-1. 제품 데이터 초기화 (최초 1회 필수)
+DB에 화장품 데이터를 채워 넣습니다.
+```bash
+python data_collector.py
 ```
 
-## 🏃‍♂️ 실행 방법
-추후 내용 채우기
-
-## 📂 최종 폴더 구조
-```Plaintext
-CapstoneDesign/
-├── skin_analyzer.py     # [모듈] OpenAI API 활용 피부 이미지 분석
-├── skin_advisor.py      # [모듈] 프로그램 실행 파일
-├── advisor_core.py      # [모듈] 피부 나이 계산 및 제품 추천 알고리즘
-├── skincare_Scraper.py  # [도구] 올리브영 제품 정보 크롤러
-├── utils.py             # [도구] DB연결, 파일입출력 등 공통 함수 모음
-├── config.py            # [설정] API 키, 파일 경로, 가중치 등 전역 설정
-├── .env                 # [보안] API Key 및 DB 비밀번호 저장 (Git 업로드 X)
-├── requirements.txt     # [설정] 필요 라이브러리 목록
-└── README.md            # 프로젝트 설명서
+## 6-2. 서버 시작
+```bash
+# 가상환경이 켜진 상태에서 실행
+python main.py
 ```
+서버가 정상 실행되면 http://localhost:8000 에서 접속 가능합니다. (내부에서만)
