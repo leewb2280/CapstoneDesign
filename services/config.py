@@ -22,7 +22,7 @@ load_dotenv()
 
 # 트러블 예측 모델(.pkl) 파일 경로
 # (utils.py의 predict_trouble_proba 함수에서 사용)
-MODEL_PATH = "trouble_model.pkl"
+MODEL_PATH = "../models/trouble_model.pkl"
 
 # ==============================================================================
 # 2. LOCALIZATION (한글 표기 매핑)

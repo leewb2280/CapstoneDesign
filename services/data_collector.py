@@ -16,8 +16,8 @@ import psycopg2
 from dotenv import load_dotenv
 
 # 외부 모듈
-from naver_api import get_naver_shopping_data
-from config import DB_CONFIG
+from .naver_api import get_naver_shopping_data
+from .config import DB_CONFIG
 
 # 로깅 설정
 logging.basicConfig(level=logging.INFO)

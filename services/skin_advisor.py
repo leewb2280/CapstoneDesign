@@ -5,16 +5,14 @@ API 서버의 요청을 받아, 수집된 데이터를 종합하여
 최종적인 피부 나이 진단, 화장품 추천, 관리 루틴을 생성하는 모듈입니다.
 """
 
-import os
 import logging
 import datetime
 import json
 import numpy as np
-from dotenv import load_dotenv
 
 # 설정 및 유틸리티
-from config import *
-from utils import (
+from .config import *
+from core.utils import (
     load_products_from_db,
     get_current_weather,
     predict_trouble_proba,
@@ -22,7 +20,7 @@ from utils import (
     save_recommendation_to_db
 )
 # 분석 로직 엔진
-from analysis_logic import SkinCareAdvisor
+from .analysis_logic import SkinCareAdvisor
 
 # 로깅 설정
 logging.basicConfig(level=logging.INFO)

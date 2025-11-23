@@ -9,7 +9,6 @@ API 서버, 머신러닝 모델, 데이터베이스 간의 연결을 담당하�
 3. Database: 제품 조회, 피부 데이터 조회, 추천 결과 저장
 """
 
-import os
 import json
 import urllib.request
 import logging
@@ -19,7 +18,7 @@ import psycopg2
 import numpy as np
 
 # 설정 파일 로드 (DB 접속 정보, 모델 경로 등)
-from config import *
+from services.config import *
 
 # 로깅 설정
 logging.basicConfig(level=logging.INFO)

@@ -12,7 +12,7 @@
 """
 
 import datetime
-from config import *  # 가중치(RULES), 번역 매핑(CAT_KO 등) 로드
+from .config import *  # 가중치(RULES), 번역 매핑(CAT_KO 등) 로드
 
 
 class SkinCareAdvisor:

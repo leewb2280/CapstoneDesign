@@ -17,9 +17,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 # 사용자 정의 모듈 임포트
-from skin_analyzer import perform_skin_analysis
-from skin_advisor import run_skin_advisor
-from data_collector import run_data_collection
+from services.skin_analyzer import perform_skin_analysis
+from services.skin_advisor import run_skin_advisor
+from services.data_collector import run_data_collection
 
 # 로깅 설정 (서버 로그를 더 잘 보기 위해)
 logging.basicConfig(level=logging.INFO)
@@ -36,7 +36,6 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 tags_metadata = [
     {"name": "General", "description": "기본 페이지 및 정적 파일"},
     {"name": "Mobile App", "description": "모바일 앱 연동 API (분석 -> 추천)"},
-    {"name": "Kiosk", "description": "키오스크/하드웨어 연동 API (원스톱 진단)"},
     {"name": "Admin", "description": "데이터 관리 및 업데이트"},
 ]
 
@@ -158,7 +157,7 @@ def hardware_capture():
 # --- [General] ---
 @app.get("/", tags=["General"])
 def read_root():
-    return FileResponse("index.html")
+    return FileResponse("static/index.html")
 
 
 # --- [Mobile App] ---

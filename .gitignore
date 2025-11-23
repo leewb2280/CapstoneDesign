@@ -3,5 +3,4 @@
 .venv
 .env
 image-data
-trouble_model.pkl
 temp_uploads

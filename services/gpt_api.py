@@ -17,7 +17,7 @@ from openai import OpenAI
 from dotenv import load_dotenv
 
 # 설정 파일 로드
-from config import GPT_MODEL_NAME, GPT_SYSTEM_PROMPT
+from .config import GPT_MODEL_NAME, GPT_SYSTEM_PROMPT
 
 # 로깅 설정
 logging.basicConfig(level=logging.INFO)

@@ -14,8 +14,8 @@ import psycopg2
 from dotenv import load_dotenv
 
 # 사용자 정의 모듈
-from gpt_api import analyze_skin_image
-from config import DB_CONFIG
+from .gpt_api import analyze_skin_image
+from .config import DB_CONFIG
 
 # 로깅 설정
 logging.basicConfig(level=logging.INFO)
