@@ -10,6 +10,7 @@ import shutil
 import uuid
 import random
 import logging
+import subprocess
 
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException, BackgroundTasks
 from fastapi.responses import FileResponse
@@ -123,10 +124,25 @@ def hardware_capture():
 
             # 터미널 명령어 실행 (카메라로 사진 찍어서 파일로 저장)
             # --nopreview: 화면 안 띄움, -t 1: 1ms 후 촬영, -o: 저장 경로
-            os.system(f"libcamera-still -o {real_img_path} --width 640 --height 640 -t 1 --nopreview")
+            
+            cmd = [
+                "libcamera-still",
+                "-o", real_img_path,
+                "--width", "640",
+                "--height", "640",
+                "-t", "1",
+                "--nopreview"
+            ]
+            
+            # subprocess를 사용하여 실행 결과와 에러 메시지를 포착
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            
+            if result.returncode != 0:
+                logger.error(f"❌ 카메라 촬영 명령 실패: {result.stderr}")
+                raise Exception(f"Camera Command Failed: {result.stderr}")
 
             if not os.path.exists(real_img_path):
-                raise Exception("사진 촬영 실패")
+                raise Exception("사진 파일이 생성되지 않았습니다.")
 
             # ---------------------------------------------------------
             # [B] 유수분 센서 측정 (SPI 통신 예시)

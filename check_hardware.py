@@ -1,0 +1,73 @@
+import os
+import sys
+import subprocess
+import shutil
+import time
+
+def check_library(name):
+    print(f"[*] Checking library: {name}...", end=" ")
+    try:
+        __import__(name)
+        print("OK")
+        return True
+    except ImportError:
+        print("FAIL (Not installed)")
+        return False
+
+def check_command(cmd):
+    print(f"[*] Checking command: {cmd}...", end=" ")
+    path = shutil.which(cmd)
+    if path:
+        print(f"OK ({path})")
+        return True
+    else:
+        print("FAIL (Not found in PATH)")
+        return False
+
+print("="*50)
+print(" 🕵️  Raspberry Pi Hardware Diagnostic Tool")
+print("="*50)
+
+# 1. Check Python Libraries
+print("\n[1] Checking Python Libraries...")
+libs = ["spidev", "RPi.GPIO", "cv2", "numpy"]
+for lib in libs:
+    check_library(lib)
+
+# 2. Check Camera Command
+print("\n[2] Checking Camera System...")
+has_libcamera = check_command("libcamera-still")
+has_raspistill = check_command("raspistill")
+
+if not has_libcamera and not has_raspistill:
+    print("❌ No camera software found!")
+else:
+    if has_libcamera:
+        print("\n[3] Testing Camera Capture (libcamera)...")
+        try:
+            cmd = ["libcamera-still", "-o", "test_image.jpg", "-t", "1000", "--width", "640", "--height", "480", "--nopreview"]
+            print(f"    Running: {' '.join(cmd)}")
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            
+            if result.returncode == 0:
+                print("    ✅ Capture SUCCESS! (saved to test_image.jpg)")
+                if os.path.exists("test_image.jpg"):
+                    print(f"    File size: {os.path.getsize('test_image.jpg')} bytes")
+            else:
+                print("    ❌ Capture FAILED!")
+                print("    Error Output:")
+                print("-" * 20)
+                print(result.stderr)
+                print("-" * 20)
+        except Exception as e:
+            print(f"    Error executing command: {e}")
+
+# 3. Check SPI (for Moisture Sensor)
+print("\n[4] Checking SPI Interface...")
+if os.path.exists("/dev/spidev0.0"):
+    print("    ✅ /dev/spidev0.0 found (SPI enabled)")
+else:
+    print("    ❌ /dev/spidev0.0 NOT found. Please enable SPI in raspi-config.")
+
+print("\n" + "="*50)
+print("Diagnostic Complete.")
