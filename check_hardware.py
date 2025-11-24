@@ -24,8 +24,25 @@ def check_command(cmd):
         print("FAIL (Not found in PATH)")
         return False
 
+def check_config_file(filename):
+    if not os.path.exists(filename):
+        return None
+    
+    print(f"    Reading {filename}...")
+    with open(filename, 'r') as f:
+        content = f.read()
+        
+    issues = []
+    if "start_x=1" in content:
+        issues.append("⚠️  'start_x=1' found (Legacy Camera Mode enabled). This disables libcamera/rpicam!")
+    
+    if "camera_auto_detect=0" in content:
+        issues.append("⚠️  'camera_auto_detect=0' found. Ensure your camera is explicitly defined.")
+        
+    return issues
+
 print("="*50)
-print(" 🕵️  Raspberry Pi Hardware Diagnostic Tool")
+print(" 🕵️  Raspberry Pi Hardware Diagnostic Tool v2.0")
 print("="*50)
 
 # 1. Check Python Libraries
@@ -36,13 +53,28 @@ for lib in libs:
 
 # 2. Check Camera Command
 print("\n[2] Checking Camera System...")
-# 2. Check Camera Command
-print("\n[2] Checking Camera System...")
 has_rpicam = check_command("rpicam-still")
 has_libcamera = check_command("libcamera-still")
 has_raspistill = check_command("raspistill")
 
-# Check for camera listing tool
+# 2-1. Check Config Files (Common Issues)
+print("\n[2-1] Checking System Configuration...")
+config_files = ["/boot/config.txt", "/boot/firmware/config.txt"]
+found_config = False
+for cf in config_files:
+    issues = check_config_file(cf)
+    if issues is not None:
+        found_config = True
+        if not issues:
+            print(f"    ✅ {cf} looks OK.")
+        else:
+            for issue in issues:
+                print(f"    {issue}")
+
+if not found_config:
+    print("    ℹ️  Could not find config.txt (might be different OS structure).")
+
+# 2-2. List Cameras
 list_cmd = None
 if check_command("rpicam-hello"):
     list_cmd = ["rpicam-hello", "--list-cameras"]
@@ -50,15 +82,16 @@ elif check_command("libcamera-hello"):
     list_cmd = ["libcamera-hello", "--list-cameras"]
 
 if list_cmd:
-    print("\n[2-1] Listing Available Cameras...")
+    print("\n[2-2] Listing Available Cameras...")
     try:
         result = subprocess.run(list_cmd, capture_output=True, text=True)
         print(result.stdout)
         if "Available cameras" not in result.stdout and "seq" not in result.stdout:
-             print("    ⚠️  Warning: Output does not look like a camera list. Check connection.")
+             print("    ❌ NO CAMERAS DETECTED by the system.")
     except Exception as e:
         print(f"    Error listing cameras: {e}")
 
+# 3. Test Capture
 target_cmd = None
 if has_rpicam:
     target_cmd = "rpicam-still"
@@ -68,7 +101,7 @@ elif has_raspistill:
     target_cmd = "raspistill"
 
 if not target_cmd:
-    print("❌ No camera software found!")
+    print("\n❌ No camera software found!")
 else:
     print(f"\n[3] Testing Camera Capture ({target_cmd})...")
     try:
@@ -89,7 +122,7 @@ else:
     except Exception as e:
         print(f"    Error executing command: {e}")
 
-# 3. Check SPI (for Moisture Sensor)
+# 4. Check SPI
 print("\n[4] Checking SPI Interface...")
 if os.path.exists("/dev/spidev0.0"):
     print("    ✅ /dev/spidev0.0 found (SPI enabled)")
