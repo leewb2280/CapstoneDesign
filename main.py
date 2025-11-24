@@ -108,6 +108,21 @@ except ImportError:
     spidev = None
 
 
+def get_camera_command():
+    """
+    사용 가능한 카메라 명령어를 찾아서 반환합니다.
+    우선순위: rpicam-still (최신) -> libcamera-still (구버전) -> raspistill (레거시)
+    """
+    commands = ["rpicam-still", "libcamera-still", "raspistill"]
+    
+    for cmd in commands:
+        if shutil.which(cmd):
+            logger.info(f"📸 카메라 명령어 감지됨: {cmd}")
+            return cmd
+            
+    return None
+
+
 def hardware_capture():
     """
     [하드웨어 제어] 실제 센서/카메라가 있으면 작동시키고, 데이터를 가져옵니다.
@@ -125,8 +140,12 @@ def hardware_capture():
             # 터미널 명령어 실행 (카메라로 사진 찍어서 파일로 저장)
             # --nopreview: 화면 안 띄움, -t 1: 1ms 후 촬영, -o: 저장 경로
             
+            cam_cmd = get_camera_command()
+            if not cam_cmd:
+                 raise Exception("카메라 명령어를 찾을 수 없습니다. (rpicam-still, libcamera-still, raspistill)")
+
             cmd = [
-                "libcamera-still",
+                cam_cmd,
                 "-o", real_img_path,
                 "--width", "640",
                 "--height", "640",

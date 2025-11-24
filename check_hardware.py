@@ -36,31 +36,39 @@ for lib in libs:
 
 # 2. Check Camera Command
 print("\n[2] Checking Camera System...")
+has_rpicam = check_command("rpicam-still")
 has_libcamera = check_command("libcamera-still")
 has_raspistill = check_command("raspistill")
 
-if not has_libcamera and not has_raspistill:
+target_cmd = None
+if has_rpicam:
+    target_cmd = "rpicam-still"
+elif has_libcamera:
+    target_cmd = "libcamera-still"
+elif has_raspistill:
+    target_cmd = "raspistill"
+
+if not target_cmd:
     print("❌ No camera software found!")
 else:
-    if has_libcamera:
-        print("\n[3] Testing Camera Capture (libcamera)...")
-        try:
-            cmd = ["libcamera-still", "-o", "test_image.jpg", "-t", "1000", "--width", "640", "--height", "480", "--nopreview"]
-            print(f"    Running: {' '.join(cmd)}")
-            result = subprocess.run(cmd, capture_output=True, text=True)
-            
-            if result.returncode == 0:
-                print("    ✅ Capture SUCCESS! (saved to test_image.jpg)")
-                if os.path.exists("test_image.jpg"):
-                    print(f"    File size: {os.path.getsize('test_image.jpg')} bytes")
-            else:
-                print("    ❌ Capture FAILED!")
-                print("    Error Output:")
-                print("-" * 20)
-                print(result.stderr)
-                print("-" * 20)
-        except Exception as e:
-            print(f"    Error executing command: {e}")
+    print(f"\n[3] Testing Camera Capture ({target_cmd})...")
+    try:
+        cmd = [target_cmd, "-o", "test_image.jpg", "-t", "1000", "--width", "640", "--height", "480", "--nopreview"]
+        print(f"    Running: {' '.join(cmd)}")
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        
+        if result.returncode == 0:
+            print("    ✅ Capture SUCCESS! (saved to test_image.jpg)")
+            if os.path.exists("test_image.jpg"):
+                print(f"    File size: {os.path.getsize('test_image.jpg')} bytes")
+        else:
+            print("    ❌ Capture FAILED!")
+            print("    Error Output:")
+            print("-" * 20)
+            print(result.stderr)
+            print("-" * 20)
+    except Exception as e:
+        print(f"    Error executing command: {e}")
 
 # 3. Check SPI (for Moisture Sensor)
 print("\n[4] Checking SPI Interface...")
