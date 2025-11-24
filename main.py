@@ -11,7 +11,9 @@ import uuid
 import random
 import logging
 
+# [수정 1] StaticFiles 임포트 추가
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException, BackgroundTasks
+from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -25,41 +27,31 @@ from core.utils import (
     create_user_table, check_user_exists_db
 )
 
-# 로깅 설정 (서버 로그를 더 잘 보기 위해)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-
-# ==========================================
-# 1. 서버 설정 (Configuration)
-# ==========================================
+# 이미지 저장 경로 설정
 UPLOAD_DIR = "temp_uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-# API 문서(Swagger UI)를 예쁘게 정리하기 위한 태그 설정
-tags_metadata = [
-    {"name": "General", "description": "기본 페이지 및 정적 파일"},
-    {"name": "Mobile App", "description": "모바일 앱 연동 API (분석 -> 추천)"},
-    {"name": "Admin", "description": "데이터 관리 및 업데이트"},
-]
 
-app = FastAPI(
-    title="AI Skin Advisor Server",
-    description="캡스톤 디자인 - 피부 분석 및 화장품 추천 시스템",
-    version="1.0.0",
-    openapi_tags=tags_metadata
-)
+# ==========================================
+# 1. FastAPI 앱 초기화 및 설정
+# ==========================================
+app = FastAPI()
 
-create_user_table()
-
-# [중요] CORS 설정 (앱/웹 접속 허용)
+# CORS 설정
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 모든 IP에서 접속 허용 (배포 시 보안 주의)
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# [수정 2] 정적 파일 마운트 (이미지 접근 허용)
+# 브라우저가 "/uploads"로 요청하면 실제 서버의 "temp_uploads" 폴더를 보여줌
+app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
 
 # ==========================================
@@ -94,67 +86,52 @@ class AuthRequest(BaseModel):
 # ==========================================
 # 3. 하드웨어 제어 로직 (Hardware Control)
 # ==========================================
-# 하드웨어 라이브러리 추가
 try:
-    # 라즈베리파이 전용 라이브러리들
-    import spidev       # SPI 통신 (유수분 센서용)
-    import RPi.GPIO as GPIO # GPIO 제어용
+    import spidev
+    import RPi.GPIO as GPIO
     IS_RASPBERRY_PI = True
 except ImportError:
-    # PC에서 실행 중이면 에러가 나므로 가상 모드로 전환
     print("⚠️ 라즈베리파이가 아닙니다. 가상 모드(Mock)로 동작합니다.")
     IS_RASPBERRY_PI = False
     spidev = None
 
 
 def hardware_capture():
-    """
-    [하드웨어 제어] 실제 센서/카메라가 있으면 작동시키고, 데이터를 가져옵니다.
-    """
     logger.info("📡 하드웨어 데이터 수집 시작...")
 
-    # 1. 라즈베리파이인지 확인 (PC면 가짜 데이터 반환)
     if IS_RASPBERRY_PI:
         try:
-            # ---------------------------------------------------------
-            # [A] 카메라 촬영 (libcamera 사용 예시)
-            # ---------------------------------------------------------
             real_img_path = os.path.join(UPLOAD_DIR, "capture.jpg")
-
-            # 터미널 명령어 실행 (카메라로 사진 찍어서 파일로 저장)
-            # --nopreview: 화면 안 띄움, -t 1: 1ms 후 촬영, -o: 저장 경로
             os.system(f"libcamera-still -o {real_img_path} --width 640 --height 640 -t 1 --nopreview")
 
             if not os.path.exists(real_img_path):
                 raise Exception("사진 촬영 실패")
 
-            # ---------------------------------------------------------
-            # [B] 유수분 센서 측정 (SPI 통신 예시)
-            # ---------------------------------------------------------
-            # (하드웨어 담당 팀원에게 받은 코드를 여기에 넣으세요!)
+            adc = spidev.SpiDev()
+            adc.open(0, 0)
+            adc.max_speed_hz = 1350000
 
-            # 예: ADC(아날로그-디지털 변환기) 값 읽기
-            # spi = spidev.SpiDev()
-            # spi.open(0, 0)
-            # adc_value = spi.xfer2([1, (8 + 0) << 4, 0]) ...
+            def read_adc(channel):
+                r = adc.xfer2([1, (8 + channel) << 4, 0])
+                data = ((r[1] & 3) << 8) + r[2]
+                return data
 
-            # 여기서는 예시로 임의의 변수에 센서값을 넣었다고 가정합니다.
-            real_moisture = 45  # 실제 센서에서 읽은 값 변수
-            real_sebum = 60  # 실제 센서에서 읽은 값 변수
+            # 채널 0이 수분, 채널 1이 유분이라고 가정
+            raw_moisture = read_adc(0)
+            raw_sebum = read_adc(1)
 
+            # 0~1023 값을 0~100 점수로 환산 (단순 예시)
+            real_moisture = int((raw_moisture / 1023) * 100)
+            real_sebum = int((raw_sebum / 1023) * 100)
             logger.info(f"📸 촬영 완료: {real_img_path}, 센서: 수분{real_moisture}/유분{real_sebum}")
 
             return real_img_path, real_moisture, real_sebum
 
         except Exception as e:
             logger.error(f"하드웨어 오류: {e}")
-            # 오류 나면 가짜 데이터라도 반환해서 멈추지 않게 함 (선택사항)
 
-    # ---------------------------------------------------------
-    # [C] PC 테스트용 (가짜 데이터)
-    # ---------------------------------------------------------
     logger.warning("⚠️ 하드웨어가 감지되지 않아 가상 데이터를 사용합니다.")
-
+    # [수정 권장] 테스트 이미지가 실제 경로에 있는지 확인 필요
     mock_image = "image-data/test/images/acne-5_jpeg.rf.2d6671715f0149df7b494c4d3f12a98b.jpg"
     mock_moisture = random.randint(20, 60)
     mock_sebum = random.randint(40, 90)
@@ -166,13 +143,11 @@ def hardware_capture():
 # 4. API 엔드포인트 (Endpoints)
 # ==========================================
 
-# --- [General] ---
 @app.get("/", tags=["General"])
 def read_root():
     return FileResponse("static/index.html")
 
 
-# --- [Mobile App] ---
 @app.post("/analyze", tags=["Mobile App"])
 async def analyze_skin_endpoint(
         user_id: str = Form(...),
@@ -214,129 +189,87 @@ async def analyze_skin_endpoint(
         logger.error(f"Analyze Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-    finally:
-        # 3. 임시 파일 정리 (성공/실패 상관없이 실행)
-        if file_path and os.path.exists(file_path):
-            try:
-                os.remove(file_path)
-                logger.info("🗑️ 임시 파일 삭제 완료")
-            except:
-                pass
+    # [수정 3] finally 블록 삭제 (또는 주석 처리)
+    # 이미지를 지우면 나중에 html에서 볼 수 없으므로 삭제 로직 제거함
+    # finally:
+    #     if file_path and os.path.exists(file_path):
+    #         os.remove(file_path)
 
 
 @app.post("/analyze-hardware", tags=["Kiosk"])
 async def analyze_hardware_endpoint(user_id: str = Form(...)):
-    """
-    [하드웨어 전용]
-    파일 업로드 없이, 라즈베리파이가 직접 촬영하고 센서를 읽어서 분석합니다.
-    """
     logger.info(f"📸 하드웨어 촬영 및 분석 요청: {user_id}")
-
     try:
-        # 1. 하드웨어 제어 (사진 촬영 + 센서 읽기)
-        # hardware_capture 함수는 (이미지경로, 수분, 유분)을 반환함
         img_path, moist, seb = hardware_capture()
-
-        # 2. 분석 수행
         result = perform_skin_analysis(user_id, img_path, moist, seb)
 
         if not result:
             raise HTTPException(status_code=500, detail="AI Analysis Failed")
 
-        # 3. 결과 반환 (센서값도 같이 보내줌, 화면에 띄우기 위해)
         return {
             "message": "Hardware Analysis successful",
             "analysis_id": result["analysis_id"],
             "gpt_result": result["gpt_result"],
-            "sensor_data": {"moisture": moist, "sebum": seb}  # 웹 화면 업데이트용
+            "sensor_data": {"moisture": moist, "sebum": seb}
         }
-
     except Exception as e:
         logger.error(f"Hardware Analyze Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/recommend", tags=["Mobile App"])
 async def recommend_endpoint(req: RecommendRequest):
-    """
-    [Step 2] 분석 ID와 설문 데이터를 받아 제품을 추천합니다.
-    """
     logger.info(f"📥 추천 요청: User {req.user_id}, ID {req.analysis_id}")
-
     if not check_user_exists_db(req.user_id):
-        raise HTTPException(status_code=401, detail="존재하지 않는 회원입니다. 먼저 회원가입을 해주세요.")
+        raise HTTPException(status_code=401, detail="존재하지 않는 회원입니다.")
 
     try:
-        # Pydantic v2 호환 (.model_dump)
         final_result = run_skin_advisor(
             user_id=req.user_id,
             analysis_id=req.analysis_id,
             lifestyle=req.lifestyle.model_dump(),
             user_pref=req.user_pref.model_dump()
         )
-
         if not final_result:
             raise HTTPException(status_code=404, detail="Data Not Found")
 
-        return {
-            "message": "Recommendation successful",
-            "result": final_result
-        }
-
+        return {"message": "Recommendation successful", "result": final_result}
     except Exception as e:
         logger.error(f"Recommend Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# --- [Admin] ---
 @app.post("/update-products", tags=["Admin"])
 async def update_products_endpoint(background_tasks: BackgroundTasks, secret_key: str = Form(...)):
-    """
-    [Admin] 백그라운드에서 제품 데이터 크롤링 및 DB 갱신
-    """
     if secret_key != "admin1234":
         raise HTTPException(status_code=401, detail="Unauthorized")
-
     background_tasks.add_task(run_data_collection)
     return {"message": "Update started in background", "status": "processing"}
 
 
 @app.post("/signup", tags=["Auth"])
 async def signup_endpoint(req: AuthRequest):
-    """회원가입 API"""
     if not req.user_id or not req.password:
         raise HTTPException(status_code=400, detail="ID와 비밀번호를 입력하세요.")
-
     success = register_user_db(req.user_id, req.password, req.name)
     if not success:
         raise HTTPException(status_code=400, detail="이미 존재하는 아이디입니다.")
-
     return {"message": "회원가입 성공!", "user_id": req.user_id}
 
 
 @app.post("/login", tags=["Auth"])
 async def login_endpoint(req: AuthRequest):
-    """로그인 API"""
     user = authenticate_user_db(req.user_id, req.password)
     if not user:
         raise HTTPException(status_code=401, detail="아이디 또는 비밀번호가 틀렸습니다.")
-
     return {"message": "로그인 성공", "user_info": user}
 
 
 @app.get("/history/{user_id}", tags=["Auth"])
 async def history_endpoint(user_id: str):
-    """
-    [기록 조회] 특정 아이디의 과거 진단 기록을 불러옵니다.
-    앱에서 로그인 후 '마이페이지' 같은 곳에서 사용합니다.
-    """
     history = get_user_history_db(user_id)
     return {"user_id": user_id, "history": history}
 
-# ==========================================
-# 5. 서버 실행 진입점 (Main)
-# ==========================================
+
 if __name__ == "__main__":
     import uvicorn
-
-    # reload=True는 코드 수정 시 서버 자동 재시작 기능 (개발용)
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

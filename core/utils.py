@@ -362,17 +362,23 @@ def authenticate_user_db(user_id, password):
 
 
 def get_user_history_db(user_id):
-    """특정 사용자의 과거 추천 기록 조회"""
+    """
+    특정 사용자의 과거 기록을 조회합니다.
+    recommendation_log와 analysis_log를 JOIN하여 풍부한 데이터를 가져옵니다.
+    """
     try:
         conn = psycopg2.connect(**DB_CONFIG)
         cursor = conn.cursor()
 
-        # 최근 기록 5개만 조회
+        # JOIN 쿼리: 추천 기록 + 분석 기록(이미지, 점수 등)
         query = """
-            SELECT id, skin_age, top3_products, created_at 
-            FROM recommendation_log 
-            WHERE user_id = %s 
-            ORDER BY id DESC LIMIT 5
+            SELECT 
+                r.id, r.skin_age, r.top3_products, r.created_at,
+                a.image_path, a.acne, a.wrinkles, a.pores, a.pigmentation, a.redness, a.moisture, a.sebum
+            FROM recommendation_log r
+            LEFT JOIN analysis_log a ON r.analysis_id = a.id
+            WHERE r.user_id = %s 
+            ORDER BY r.id DESC
         """
         cursor.execute(query, (user_id,))
         rows = cursor.fetchall()
@@ -382,13 +388,25 @@ def get_user_history_db(user_id):
 
         history = []
         for r in rows:
-            # DB에 저장된 JSON 문자열을 다시 객체로 변환
+            # r[0]: record_id, r[1]: skin_age, r[2]: top3_json, r[3]: date
+            # r[4]: img_path, r[5]~r[11]: scores
+
             top3 = json.loads(r[2]) if r[2] else []
+            
+            # 이미지 경로가 없거나 파일이 없으면 기본 이미지 처리 (프론트에서 처리하도록 None 보냄)
+            img_path = r[4] if r[4] else None
+
             history.append({
                 "record_id": r[0],
                 "skin_age": r[1],
-                "top3_names": [p['name'] for p in top3],  # 제품 이름만 간단히
-                "date": str(r[3])
+                "top3_names": [p['name'] for p in top3],
+                "date": str(r[3]),
+                "image_path": img_path,
+                "scores": {
+                    "acne": r[5], "wrinkles": r[6], "pores": r[7], 
+                    "pigmentation": r[8], "redness": r[9], 
+                    "moisture": r[10], "sebum": r[11]
+                }
             })
 
         return history

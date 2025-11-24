@@ -28,9 +28,15 @@ load_dotenv()
 # 1. 데이터베이스 저장 (DB Handling)
 # ==============================================================================
 
-def save_analysis_to_db(user_id: str, gpt_result: dict, manual_input: dict) -> int:
+def save_analysis_to_db(user_id: str, gpt_result: dict, manual_input: dict, image_path: str) -> int:
     """
-    분석 결과와 사용자 입력값(유수분)을 PostgreSQL DB에 저장합니다.
+    분석 결과와 사용자 입력값(유수분), 그리고 이미지 경로를 PostgreSQL DB에 저장합니다.
+
+    Args:
+        user_id (str): 사용자 ID
+        gpt_result (dict): GPT 분석 결과
+        manual_input (dict): 유수분 센서 데이터
+        image_path (str): 저장된 이미지 파일 경로
 
     Returns:
         int: 저장된 로그의 ID (실패 시 None)
@@ -39,7 +45,7 @@ def save_analysis_to_db(user_id: str, gpt_result: dict, manual_input: dict) -> i
         conn = psycopg2.connect(**DB_CONFIG)
         cursor = conn.cursor()
 
-        # 테이블 자동 생성 (없을 경우)
+        # 1. 테이블 생성 (없을 경우)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS analysis_log (
                 id SERIAL PRIMARY KEY,
@@ -51,18 +57,30 @@ def save_analysis_to_db(user_id: str, gpt_result: dict, manual_input: dict) -> i
                 redness INTEGER,
                 moisture INTEGER,
                 sebum INTEGER,
+                image_path TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         """)
 
+        # 2. 스키마 마이그레이션 (기존 테이블에 image_path 컬럼이 없는 경우 추가)
+        try:
+            cursor.execute("ALTER TABLE analysis_log ADD COLUMN image_path TEXT;")
+            conn.commit()
+        except psycopg2.errors.DuplicateColumn:
+            conn.rollback()  # 이미 컬럼이 있으면 무시하고 롤백
+        except Exception as e:
+            conn.rollback()
+            logger.warning(f"⚠️ 컬럼 추가 중 오류 (무시 가능): {e}")
+
+        # 3. 데이터 삽입
         query = """
             INSERT INTO analysis_log 
-            (user_id, acne, wrinkles, pores, pigmentation, redness, moisture, sebum)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            (user_id, acne, wrinkles, pores, pigmentation, redness, moisture, sebum, image_path)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id;
         """
 
-        # 데이터 매핑 (값이 없을 경우 기본값 0 처리)
+        # 데이터 매핑
         data = (
             user_id,
             gpt_result.get("acne", 0),
@@ -71,7 +89,8 @@ def save_analysis_to_db(user_id: str, gpt_result: dict, manual_input: dict) -> i
             gpt_result.get("pigmentation", 0),
             gpt_result.get("redness", 0),
             manual_input.get("moisture", 50),
-            manual_input.get("sebum", 50)
+            manual_input.get("sebum", 50),
+            image_path
         )
 
         cursor.execute(query, data)
@@ -130,7 +149,7 @@ def perform_skin_analysis(user_id: str, image_path: str, moisture: int, sebum: i
     manual_input = {"moisture": moisture, "sebum": sebum}
 
     # 4. DB 저장
-    analysis_id = save_analysis_to_db(user_id, gpt_result, manual_input)
+    analysis_id = save_analysis_to_db(user_id, gpt_result, manual_input, image_path)
 
     if not analysis_id:
         logger.error("⚠️ DB 저장이 실패했지만 분석 결과는 반환합니다.")

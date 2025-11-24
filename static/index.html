@@ -1,70 +1,225 @@
 <!DOCTYPE html>
 <html lang="ko">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Skin Advisor Dashboard</title>
+    <title>AI Skin Advisor</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Pretendard', 'Noto Sans KR', sans-serif; background-color: #f4f6f8; color: #333; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
+        :root {
+            --primary: #4f46e5;
+            --primary-hover: #4338ca;
+            --bg: #f3f4f6;
+            --card-bg: #ffffff;
+            --text: #1f2937;
+            --text-light: #6b7280;
+            --border: #e5e7eb;
+            --success: #10b981;
+            --danger: #ef4444;
+        }
 
-        /* 공통 카드 스타일 */
-        .card { background: white; padding: 30px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); width: 100%; max-width: 800px; margin-bottom: 20px; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
 
-        /* 로그인/가입 전용 스타일 (작고 중앙 정렬) */
-        .auth-container { max-width: 400px; margin-top: 50px; text-align: center; }
-        .auth-container h2 { margin-top: 0; color: #333; font-size: 1.8em; }
-        .auth-link { margin-top: 20px; font-size: 0.9em; color: #666; }
-        .auth-link span { color: #007bff; cursor: pointer; font-weight: bold; text-decoration: underline; }
-        .auth-link span:hover { color: #0056b3; }
+        .container {
+            width: 100%;
+            max-width: 800px;
+        }
 
-        /* 폼 요소 */
-        label { display: block; margin-top: 15px; font-weight: 600; font-size: 0.9em; color: #555; text-align: left; }
-        input, select { width: 100%; padding: 12px; margin-top: 5px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 1em; transition: border 0.2s; }
-        input:focus, select:focus { border-color: #007bff; outline: none; }
-        input[readonly] { background-color: #f1f3f5; color: #495057; cursor: default; }
+        .card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
 
-        /* 버튼 스타일 */
-        button { width: 100%; padding: 14px; margin-top: 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 1.05em; transition: all 0.2s; }
-        .btn-primary { background-color: #007bff; color: white; }
-        .btn-primary:hover { background-color: #0056b3; transform: translateY(-1px); }
-        .btn-success { background: linear-gradient(135deg, #42e695 0%, #3bb2b8 100%); color: white; }
-        .btn-secondary { background-color: #6c757d; color: white; }
+        h2,
+        h3,
+        h4 {
+            margin-top: 0;
+            color: #111827;
+        }
 
-        /* 상단 상태바 */
-        .status-bar { width: 100%; max-width: 800px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding: 0 10px; box-sizing: border-box; }
-        .user-info { font-weight: bold; color: #444; }
-        .btn-logout { background: #ff6b6b; color: white; padding: 8px 15px; font-size: 0.9em; border-radius: 6px; width: auto; margin: 0; }
+        input,
+        select {
+            width: 100%;
+            padding: 10px;
+            margin: 8px 0 16px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            box-sizing: border-box;
+            font-size: 16px;
+        }
 
-        /* 유틸리티 */
-        .hidden { display: none !important; }
-        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-        pre { background: #2d2d2d; color: #f8f8f2; padding: 15px; border-radius: 8px; overflow-x: auto; text-align: left; }
-        .badge { background: #e9ecef; padding: 4px 8px; border-radius: 4px; font-size: 0.85em; color: #495057; }
+        button {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+            color: white;
+        }
 
-        /* 기록 테이블 */
-        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-        th, td { padding: 12px; border-bottom: 1px solid #eee; text-align: left; font-size: 0.95em; }
-        th { background: #f8f9fa; color: #555; }
+        .btn-primary {
+            background-color: var(--primary);
+        }
+
+        .btn-primary:hover {
+            background-color: var(--primary-hover);
+        }
+
+        .btn-success {
+            background-color: var(--success);
+        }
+
+        .btn-danger {
+            background-color: var(--danger);
+        }
+
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 14px;
+            width: auto;
+        }
+
+        .btn-logout {
+            background: transparent;
+            color: var(--text-light);
+            border: 1px solid var(--border);
+            width: auto;
+            padding: 6px 12px;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .auth-container {
+            max-width: 400px;
+            margin: 50px auto;
+            text-align: center;
+        }
+
+        .auth-link {
+            margin-top: 16px;
+            font-size: 14px;
+            color: var(--text-light);
+        }
+
+        .auth-link span {
+            color: var(--primary);
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .top-bar {
+            width: 100%;
+            max-width: 800px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        pre {
+            background: #f8fafc;
+            padding: 12px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-size: 14px;
+            border: 1px solid var(--border);
+        }
+
+        /* Modal */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 24px;
+            border-radius: 16px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 90vh;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            font-size: 24px;
+            cursor: pointer;
+            color: #9ca3af;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        th,
+        td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        th {
+            font-weight: 600;
+            color: var(--text-light);
+        }
     </style>
 </head>
+
 <body>
 
-    <div id="topBar" class="status-bar hidden">
-        <div class="user-info" id="statusText"></div>
+    <div id="topBar" class="top-bar hidden">
+        <div id="statusText" style="font-size: 1.1em;"></div>
         <button class="btn-logout" onclick="logout()">로그아웃</button>
     </div>
 
+    <!-- Auth Container -->
     <div id="authContainer" class="card auth-container">
-
         <div id="loginForm">
             <h2>👋 환영합니다</h2>
-            <p style="color:#666; margin-bottom:30px;">AI 스킨 어드바이저 서비스를 이용하려면 로그인하세요.</p>
-
+            <p style="color:var(--text-light); margin-bottom:30px;">AI 스킨 어드바이저 서비스를 이용하려면 로그인하세요.</p>
             <input type="text" id="loginId" placeholder="아이디 입력">
             <input type="password" id="loginPw" placeholder="비밀번호 입력" onkeypress="if(event.keyCode==13) reqLogin()">
-
             <button class="btn-primary" onclick="reqLogin()">로그인</button>
-
             <div class="auth-link">
                 계정이 없으신가요? <span onclick="toggleAuth('signup')">회원가입</span>
             </div>
@@ -72,44 +227,27 @@
 
         <div id="signupForm" class="hidden">
             <h2>📝 회원가입</h2>
-            <p style="color:#666; margin-bottom:20px;">새로운 계정을 생성합니다.</p>
-
+            <p style="color:var(--text-light); margin-bottom:20px;">새로운 계정을 생성합니다.</p>
             <input type="text" id="signId" placeholder="사용할 아이디">
             <input type="password" id="signPw" placeholder="비밀번호">
             <input type="text" id="signName" placeholder="이름 (예: 홍길동)">
-
             <button class="btn-success" onclick="reqSignup()">가입하기</button>
-
             <div class="auth-link">
                 이미 계정이 있으신가요? <span onclick="toggleAuth('login')">로그인</span>
             </div>
         </div>
     </div>
 
+    <!-- Main App -->
+    <div id="mainApp" class="container hidden">
 
-    <div id="mainApp" class="hidden" style="width: 100%; max-width: 800px;">
-
+        <!-- Step 1: Analysis -->
         <div class="card">
-            <h3 style="margin-top:0;">🛠️ 마이페이지</h3>
-            <div class="grid-2">
-                <button class="btn-secondary" style="margin-top:0;" onclick="reqHistory()">📜 지난 진단 기록 보기</button>
-                <button class="btn-secondary" style="margin-top:0;" onclick="updateProducts()">📦 [관리자] 데이터 업데이트</button>
-            </div>
-
-            <div id="historyArea" class="hidden">
-                <table id="historyTable">
-                    <thead><tr><th>날짜</th><th>피부나이</th><th>추천제품</th></tr></thead>
-                    <tbody></tbody>
-                </table>
-            </div>
-        </div>
-
-        <div class="card">
-            <h2 style="margin-top:0;">STEP 1. 피부 촬영</h2>
+            <h3>📸 STEP 1. 피부 분석</h3>
             <div class="grid-2">
                 <div>
                     <label>현재 사용자</label>
-                    <input type="text" id="currentUserId" readonly>
+                    <input type="text" id="currentUserId" readonly style="background:#f3f4f6;">
                 </div>
                 <div>
                     <label>얼굴 사진 업로드</label>
@@ -120,7 +258,14 @@
                 <div><label>수분 (0~100)</label><input type="number" id="moisture" value="30"></div>
                 <div><label>유분 (0~100)</label><input type="number" id="sebum" value="70"></div>
             </div>
-            <button class="btn-primary" onclick="reqAnalyze()">📸 분석 시작하기</button>
+            <div style="margin-bottom: 20px; padding: 15px; background: #e0f2fe; border-radius: 8px; border: 1px solid #bae6fd;">
+                <h4 style="margin-top:0; color:#0369a1;">🤖 키오스크 모드 (라즈베리파이)</h4>
+                <p style="font-size:0.9em; color:#0c4a6e;">카메라와 센서를 사용하여 자동으로 측정합니다.</p>
+                <button class="btn-primary" style="background-color:#0284c7;" onclick="reqHardwareAnalyze()">
+                    📸 센서 및 카메라 측정 시작
+                </button>
+            </div>
+            <button class="btn-primary" onclick="reqAnalyze()">분석 시작하기</button>
 
             <div id="result1Area" class="hidden" style="margin-top:20px;">
                 <h4>📊 1단계 분석 결과</h4>
@@ -128,27 +273,103 @@
             </div>
         </div>
 
+        <!-- Step 2: Recommendation -->
         <div class="card hidden" id="step2Card">
-            <h2 style="margin-top:0;">STEP 2. 맞춤 처방</h2>
-            <p>✅ 분석 ID: <span id="savedAnalysisId" class="badge">None</span></p>
+            <h3>💊 STEP 2. 맞춤 처방</h3>
+            <p style="color:var(--text-light); font-size:0.9em;">분석 ID: <span id="savedAnalysisId"
+                    style="font-weight:bold;">None</span></p>
 
             <div class="grid-2">
-                <div><label>수면 시간</label><input type="number" id="sleep" value="7.0"></div>
-                <div><label>물 섭취량(ml)</label><input type="number" id="water" value="1500"></div>
-                <div><label>세안 횟수</label><input type="number" id="washFreq" value="2"></div>
+                <div><label>수면 시간 (시간)</label><input type="number" id="sleep" value="7.0"></div>
+                <div><label>물 섭취량 (ml)</label><input type="number" id="water" value="1500"></div>
+                <div><label>세안 횟수 (일)</label><input type="number" id="washFreq" value="2"></div>
                 <div><label>나이</label><input type="number" id="age" value="24"></div>
             </div>
-            <label>민감성 여부</label>
-            <select id="sensitivity"><option value="no">아니오</option><option value="yes">예</option></select>
-            <label>선호 제형</label>
-            <select id="texture"><option value="gel">젤</option><option value="cream">크림</option><option value="lotion">로션</option></select>
 
-            <button class="btn-success" onclick="reqRecommend()">💊 최종 처방 받기</button>
+            <div class="grid-2">
+                <div>
+                    <label>민감성 여부</label>
+                    <select id="sensitivity">
+                        <option value="no">아니오</option>
+                        <option value="yes">예</option>
+                    </select>
+                </div>
+                <div>
+                    <label>선호 제형</label>
+                    <select id="texture">
+                        <option value="gel">젤</option>
+                        <option value="cream">크림</option>
+                        <option value="lotion">로션</option>
+                    </select>
+                </div>
+            </div>
+
+            <button class="btn-success" onclick="reqRecommend()">최종 처방 받기</button>
 
             <div id="result2Area" class="hidden" style="margin-top:20px;">
                 <h4>🏆 최종 추천 결과</h4>
                 <pre id="result2"></pre>
             </div>
+        </div>
+
+        <!-- History Section -->
+        <div class="card">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                <h3 style="margin:0;">📅 피부 분석 기록</h3>
+                <button class="btn-primary btn-sm" onclick="reqHistory()">새로고침</button>
+            </div>
+
+            <div id="historyArea" class="hidden">
+                <div style="height:300px; margin-bottom:24px;">
+                    <canvas id="historyChart"></canvas>
+                </div>
+                <div style="overflow-x:auto;">
+                    <table id="historyTable">
+                        <thead>
+                            <tr>
+                                <th>날짜</th>
+                                <th>피부나이</th>
+                                <th>상세보기</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Detail Modal -->
+    <div id="detailModal" class="modal hidden" onclick="closeModal(event)">
+        <div class="modal-content">
+            <span class="close-btn" onclick="closeModal(event)">&times;</span>
+            <h2 style="margin-bottom:20px;">상세 분석 결과</h2>
+
+            <div class="grid-2" style="margin-bottom:20px;">
+                <div>
+                    <img id="modalImg" src="" alt="분석 이미지"
+                        style="width:100%; border-radius:8px; object-fit:cover; aspect-ratio:1/1; background:#eee;">
+                </div>
+                <div>
+                    <div style="background:#f8fafc; padding:16px; border-radius:8px;">
+                        <p style="font-size:1.2em; font-weight:bold; margin-top:0;">피부 나이: <span id="modalAge"
+                                style="color:var(--primary);"></span>세</p>
+                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; font-size:0.9em;">
+                            <div>수분: <span id="modalMoist"></span></div>
+                            <div>유분: <span id="modalSebum"></span></div>
+                            <div>여드름: <span id="modalAcne"></span></div>
+                            <div>주름: <span id="modalWrinkle"></span></div>
+                            <div>모공: <span id="modalPore"></span></div>
+                            <div>색소: <span id="modalPigment"></span></div>
+                            <div>홍조: <span id="modalRedness"></span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <h3>추천 제품 Top 3</h3>
+            <ul id="modalProducts"
+                style="background:#f0fdf4; padding:16px 16px 16px 32px; border-radius:8px; color:#166534;"></ul>
         </div>
     </div>
 
@@ -156,16 +377,17 @@
         // 전역 변수
         let currentUser = null;
         let currentAnalysisId = null;
+        let historyData = [];
+        let myChart = null;
 
-        // 화면 전환 함수 (로그인 <-> 회원가입)
+        // 화면 전환 함수
         function toggleAuth(target) {
             const loginForm = document.getElementById('loginForm');
             const signupForm = document.getElementById('signupForm');
 
-            // 입력값 초기화
             document.querySelectorAll('#authContainer input').forEach(input => input.value = '');
 
-            if(target === 'signup') {
+            if (target === 'signup') {
                 loginForm.classList.add('hidden');
                 signupForm.classList.remove('hidden');
             } else {
@@ -178,25 +400,26 @@
         async function reqLogin() {
             const id = document.getElementById('loginId').value;
             const pw = document.getElementById('loginPw').value;
-            if(!id || !pw) return alert("아이디와 비밀번호를 입력하세요.");
+            if (!id || !pw) return alert("아이디와 비밀번호를 입력하세요.");
 
             try {
                 const res = await fetch('/login', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ user_id: id, password: pw, name: "user" })
                 });
                 const data = await res.json();
 
                 if (res.ok) {
                     currentUser = data.user_info;
-                    // 화면 전환 (인증창 숨김 -> 메인 보임)
                     document.getElementById('authContainer').classList.add('hidden');
                     document.getElementById('topBar').classList.remove('hidden');
                     document.getElementById('mainApp').classList.remove('hidden');
-
                     document.getElementById('statusText').innerHTML = `👤 <b>${currentUser.name}</b>님`;
                     document.getElementById('currentUserId').value = currentUser.user_id;
+
+                    // 로그인 성공 시 자동으로 기록 불러오기
+                    reqHistory();
                 } else {
                     alert(data.detail);
                 }
@@ -208,17 +431,17 @@
             const id = document.getElementById('signId').value;
             const pw = document.getElementById('signPw').value;
             const name = document.getElementById('signName').value;
-            if(!id || !pw) return alert("정보를 모두 입력하세요.");
+            if (!id || !pw) return alert("정보를 모두 입력하세요.");
 
             try {
                 const res = await fetch('/signup', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ user_id: id, password: pw, name: name })
                 });
                 if (res.ok) {
                     alert("가입되었습니다! 로그인해주세요.");
-                    toggleAuth('login'); // 로그인 화면으로 이동
+                    toggleAuth('login');
                 } else {
                     const err = await res.json();
                     alert(err.detail);
@@ -234,7 +457,7 @@
         // 분석 요청
         async function reqAnalyze() {
             const fileInput = document.getElementById('imageFile');
-            if(fileInput.files.length === 0) return alert("사진을 선택해주세요.");
+            if (fileInput.files.length === 0) return alert("사진을 선택해주세요.");
 
             const formData = new FormData();
             formData.append("user_id", currentUser.user_id);
@@ -245,12 +468,12 @@
             try {
                 const res = await fetch('/analyze', { method: 'POST', body: formData });
                 const data = await res.json();
-                if(!res.ok) throw new Error(data.detail);
+                if (!res.ok) throw new Error(data.detail);
 
                 document.getElementById('result1Area').classList.remove('hidden');
                 document.getElementById('result1').innerText = JSON.stringify(data, null, 2);
 
-                if(data.analysis_id) {
+                if (data.analysis_id) {
                     currentAnalysisId = data.analysis_id;
                     document.getElementById('savedAnalysisId').innerText = currentAnalysisId;
                     document.getElementById('step2Card').classList.remove('hidden');
@@ -259,9 +482,60 @@
             } catch (err) { alert(err); }
         }
 
+        // 하드웨어 측정 요청 함수
+        async function reqHardwareAnalyze() {
+            if (!currentUser) return alert("로그인이 필요합니다.");
+
+            // 버튼 로딩 표시
+            const btn = event.target;
+            const originalText = btn.innerText;
+            btn.innerText = "⏳ 측정 및 분석 중...";
+            btn.disabled = true;
+
+            try {
+                const formData = new FormData();
+                formData.append("user_id", currentUser.user_id);
+
+                // 서버에 하드웨어 측정 요청 (/analyze-hardware)
+                const res = await fetch('/analyze-hardware', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail);
+
+                // 1. 분석 결과창 띄우기
+                document.getElementById('result1Area').classList.remove('hidden');
+                document.getElementById('result1').innerText = JSON.stringify(data, null, 2);
+
+                // 2. 센서값(수분/유분)이 있으면 입력칸에 자동으로 채워주기
+                if(data.sensor_data) {
+                    document.getElementById('moisture').value = data.sensor_data.moisture;
+                    document.getElementById('sebum').value = data.sensor_data.sebum;
+                    alert(`측정 완료!\n수분: ${data.sensor_data.moisture}, 유분: ${data.sensor_data.sebum}`);
+                }
+
+                // 3. 다음 단계(처방)로 넘어가기 위한 ID 저장
+                if (data.analysis_id) {
+                    currentAnalysisId = data.analysis_id;
+                    document.getElementById('savedAnalysisId').innerText = currentAnalysisId;
+                    document.getElementById('step2Card').classList.remove('hidden');
+                    document.getElementById('step2Card').scrollIntoView({ behavior: 'smooth' });
+                }
+
+            } catch (err) {
+                alert("하드웨어 분석 실패: " + err);
+            } finally {
+                // 버튼 원상복구
+                btn.innerText = originalText;
+                btn.disabled = false;
+            }
+        }
+
         // 추천 요청
         async function reqRecommend() {
-            if(!currentAnalysisId) return alert("분석부터 진행하세요.");
+            if (!currentAnalysisId) return alert("분석부터 진행하세요.");
 
             const payload = {
                 "user_id": currentUser.user_id,
@@ -282,46 +556,139 @@
             try {
                 const res = await fetch('/recommend', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
                 const data = await res.json();
                 document.getElementById('result2Area').classList.remove('hidden');
                 document.getElementById('result2').innerText = JSON.stringify(data, null, 2);
+
+                // 추천 완료 후 기록 갱신
+                reqHistory();
             } catch (err) { alert(err); }
         }
 
-        // 기록 조회
+        // 히스토리 요청
         async function reqHistory() {
+            if (!currentUser) return;
             try {
                 const res = await fetch(`/history/${currentUser.user_id}`);
                 const data = await res.json();
+                historyData = data.history;
+
                 const tbody = document.querySelector('#historyTable tbody');
                 tbody.innerHTML = "";
 
-                if(data.history.length === 0) {
+                if (historyData.length === 0) {
                     tbody.innerHTML = "<tr><td colspan='3'>기록이 없습니다.</td></tr>";
-                } else {
-                    data.history.forEach(item => {
-                        tbody.innerHTML += `<tr>
-                            <td>${item.date.split(' ')[0]}</td>
-                            <td>${item.skin_age}세</td>
-                            <td>${item.top3_names.join(', ')}</td>
-                        </tr>`;
-                    });
+                    document.getElementById('historyArea').classList.remove('hidden'); // 빈 기록이라도 영역은 보여줌
+                    return;
                 }
+
+                // 테이블 렌더링
+                historyData.forEach((item, index) => {
+                    tbody.innerHTML += `<tr>
+                        <td>${item.date.split(' ')[0]}</td>
+                        <td>${item.skin_age}세</td>
+                        <td><button class="btn-primary btn-sm" onclick="openModal(${index})">보기</button></td>
+                    </tr>`;
+                });
+
                 document.getElementById('historyArea').classList.remove('hidden');
-            } catch (e) { alert(e); }
+                renderChart(historyData);
+
+            } catch (e) { console.error(e); }
         }
 
-        // 관리자
-        async function updateProducts() {
-            const formData = new FormData();
-            formData.append("secret_key", "admin1234");
-            const res = await fetch('/update-products', { method: 'POST', body: formData });
-            const data = await res.json();
-            alert(data.message);
+        // 차트 렌더링
+        function renderChart(data) {
+            const ctx = document.getElementById('historyChart').getContext('2d');
+
+            // 날짜 오름차순 정렬
+            const sortedData = [...data].sort((a, b) => new Date(a.date) - new Date(b.date));
+
+            const labels = sortedData.map(d => d.date.split(' ')[0]);
+            const ages = sortedData.map(d => d.skin_age);
+            const moistures = sortedData.map(d => d.scores ? d.scores.moisture : 0);
+
+            if (myChart) myChart.destroy();
+
+            myChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: '피부 나이',
+                            data: ages,
+                            borderColor: '#ef4444',
+                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                            tension: 0.3,
+                            fill: true
+                        },
+                        {
+                            label: '수분도',
+                            data: moistures,
+                            borderColor: '#10b981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            tension: 0.3,
+                            fill: true
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { beginAtZero: true }
+                    }
+                }
+            });
+        }
+
+        // 모달 열기
+        function openModal(index) {
+            const item = historyData[index];
+            const scores = item.scores || {};
+
+            const imgTag = document.getElementById('modalImg');
+            if (item.image_path) {
+                const filename = item.image_path.split(/[/\\\\]/).pop();
+                imgTag.src = `/uploads/${filename}`;
+                imgTag.classList.remove('hidden');
+            } else {
+                imgTag.classList.add('hidden');
+            }
+
+            document.getElementById('modalAge').innerText = item.skin_age;
+            document.getElementById('modalAcne').innerText = scores.acne || 0;
+            document.getElementById('modalWrinkle').innerText = scores.wrinkles || 0;
+            document.getElementById('modalPore').innerText = scores.pores || 0;
+            document.getElementById('modalPigment').innerText = scores.pigmentation || 0;
+            document.getElementById('modalRedness').innerText = scores.redness || 0;
+            document.getElementById('modalMoist').innerText = scores.moisture || 0;
+            document.getElementById('modalSebum').innerText = scores.sebum || 0;
+
+            const ul = document.getElementById('modalProducts');
+            ul.innerHTML = "";
+            if (item.top3_names && item.top3_names.length > 0) {
+                item.top3_names.forEach(name => {
+                    ul.innerHTML += `<li>${name}</li>`;
+                });
+            } else {
+                ul.innerHTML = "<li>추천 제품 정보가 없습니다.</li>";
+            }
+
+            document.getElementById('detailModal').classList.remove('hidden');
+        }
+
+        // 모달 닫기
+        function closeModal(e) {
+            if (e.target === e.currentTarget || e.target.classList.contains('close-btn')) {
+                document.getElementById('detailModal').classList.add('hidden');
+            }
         }
     </script>
 </body>
+
 </html>
