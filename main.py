@@ -10,7 +10,6 @@ import shutil
 import uuid
 import random
 import logging
-import subprocess
 
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException, BackgroundTasks
 from fastapi.responses import FileResponse
@@ -108,21 +107,6 @@ except ImportError:
     spidev = None
 
 
-def get_camera_command():
-    """
-    사용 가능한 카메라 명령어를 찾아서 반환합니다.
-    우선순위: rpicam-still (최신) -> libcamera-still (구버전) -> raspistill (레거시)
-    """
-    commands = ["rpicam-still", "libcamera-still", "raspistill"]
-    
-    for cmd in commands:
-        if shutil.which(cmd):
-            logger.info(f"📸 카메라 명령어 감지됨: {cmd}")
-            return cmd
-            
-    return None
-
-
 def hardware_capture():
     """
     [하드웨어 제어] 실제 센서/카메라가 있으면 작동시키고, 데이터를 가져옵니다.
@@ -139,29 +123,10 @@ def hardware_capture():
 
             # 터미널 명령어 실행 (카메라로 사진 찍어서 파일로 저장)
             # --nopreview: 화면 안 띄움, -t 1: 1ms 후 촬영, -o: 저장 경로
-            
-            cam_cmd = get_camera_command()
-            if not cam_cmd:
-                 raise Exception("카메라 명령어를 찾을 수 없습니다. (rpicam-still, libcamera-still, raspistill)")
-
-            cmd = [
-                cam_cmd,
-                "-o", real_img_path,
-                "--width", "640",
-                "--height", "640",
-                "-t", "1",
-                "--nopreview"
-            ]
-            
-            # subprocess를 사용하여 실행 결과와 에러 메시지를 포착
-            result = subprocess.run(cmd, capture_output=True, text=True)
-            
-            if result.returncode != 0:
-                logger.error(f"❌ 카메라 촬영 명령 실패: {result.stderr}")
-                raise Exception(f"Camera Command Failed: {result.stderr}")
+            os.system(f"libcamera-still -o {real_img_path} --width 640 --height 640 -t 1 --nopreview")
 
             if not os.path.exists(real_img_path):
-                raise Exception("사진 파일이 생성되지 않았습니다.")
+                raise Exception("사진 촬영 실패")
 
             # ---------------------------------------------------------
             # [B] 유수분 센서 측정 (SPI 통신 예시)
@@ -258,6 +223,37 @@ async def analyze_skin_endpoint(
             except:
                 pass
 
+
+@app.post("/analyze-hardware", tags=["Kiosk"])
+async def analyze_hardware_endpoint(user_id: str = Form(...)):
+    """
+    [하드웨어 전용]
+    파일 업로드 없이, 라즈베리파이가 직접 촬영하고 센서를 읽어서 분석합니다.
+    """
+    logger.info(f"📸 하드웨어 촬영 및 분석 요청: {user_id}")
+
+    try:
+        # 1. 하드웨어 제어 (사진 촬영 + 센서 읽기)
+        # hardware_capture 함수는 (이미지경로, 수분, 유분)을 반환함
+        img_path, moist, seb = hardware_capture()
+
+        # 2. 분석 수행
+        result = perform_skin_analysis(user_id, img_path, moist, seb)
+
+        if not result:
+            raise HTTPException(status_code=500, detail="AI Analysis Failed")
+
+        # 3. 결과 반환 (센서값도 같이 보내줌, 화면에 띄우기 위해)
+        return {
+            "message": "Hardware Analysis successful",
+            "analysis_id": result["analysis_id"],
+            "gpt_result": result["gpt_result"],
+            "sensor_data": {"moisture": moist, "sebum": seb}  # 웹 화면 업데이트용
+        }
+
+    except Exception as e:
+        logger.error(f"Hardware Analyze Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/recommend", tags=["Mobile App"])
 async def recommend_endpoint(req: RecommendRequest):
