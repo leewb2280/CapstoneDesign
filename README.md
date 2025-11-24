@@ -40,7 +40,7 @@ sudo raspi-config
 
 ```bash
 # libcamera (카메라), libatlas (Numpy 가속), PostgreSQL(DB) 설치
-sudo apt install -y libcamera-apps libatlas-base-dev postgresql postgresql-contrib
+sudo apt install -y libcamera-apps libopenblas-dev postgresql
 ```
 
 ---
@@ -114,18 +114,22 @@ OWM_API_KEY=your_weather_key
 ---
 
 ## 🚀 6. 서버 실행 (Manual Run)
-### 6-1. 제품 데이터 초기화 (최초 1회 필수)
-DB에 화장품 데이터를 채워 넣습니다.
-```bash
-python data_collector.py
-```
-
-## 6-2. 서버 시작
 ```bash
 # 가상환경이 켜진 상태에서 실행
 python main.py
 ```
-서버가 정상 실행되면 
+서버가 정상 실행되면 밑의 주소에서 접속 가능합니다.
+
+내부:
+
 테스트 사이트: http://localhost:8000
+
 코드 확인 사이트: http://localhost:8000/docs
-에서 접속 가능합니다. (내부에서만)
+
+외부:
+
+테스트 사이트: http://IP_입력:8000
+
+코드 확인 사이트: http://IP_입력:8000/docs
+
+이후 원활한 작동을 위해 데이터 수집을 먼저 해주십시오.
