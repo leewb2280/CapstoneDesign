@@ -36,9 +36,28 @@ for lib in libs:
 
 # 2. Check Camera Command
 print("\n[2] Checking Camera System...")
+# 2. Check Camera Command
+print("\n[2] Checking Camera System...")
 has_rpicam = check_command("rpicam-still")
 has_libcamera = check_command("libcamera-still")
 has_raspistill = check_command("raspistill")
+
+# Check for camera listing tool
+list_cmd = None
+if check_command("rpicam-hello"):
+    list_cmd = ["rpicam-hello", "--list-cameras"]
+elif check_command("libcamera-hello"):
+    list_cmd = ["libcamera-hello", "--list-cameras"]
+
+if list_cmd:
+    print("\n[2-1] Listing Available Cameras...")
+    try:
+        result = subprocess.run(list_cmd, capture_output=True, text=True)
+        print(result.stdout)
+        if "Available cameras" not in result.stdout and "seq" not in result.stdout:
+             print("    ⚠️  Warning: Output does not look like a camera list. Check connection.")
+    except Exception as e:
+        print(f"    Error listing cameras: {e}")
 
 target_cmd = None
 if has_rpicam:
