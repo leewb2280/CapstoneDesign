@@ -106,42 +106,20 @@
 
         <div class="card">
             <h2 style="margin-top:0;">STEP 1. 피부 촬영</h2>
-
-            <div style="background:#f8f9fa; padding:10px; border-radius:8px; margin-bottom:15px; display:flex; gap:20px; align-items:center;">
-                <span style="font-weight:bold; color:#555;">📸 모드 선택:</span>
-                <label style="margin:0; font-weight:normal; cursor:pointer;">
-                    <input type="radio" name="scanMode" value="upload" checked onclick="toggleMode()">
-                    파일 업로드 (PC/폰)
-                </label>
-                <label style="margin:0; font-weight:normal; cursor:pointer;">
-                    <input type="radio" name="scanMode" value="camera" onclick="toggleMode()">
-                    라즈베리파이 촬영 (키오스크)
-                </label>
-            </div>
-
             <div class="grid-2">
                 <div>
                     <label>현재 사용자</label>
                     <input type="text" id="currentUserId" readonly>
                 </div>
-
-                <div id="uploadGroup">
+                <div>
                     <label>얼굴 사진 업로드</label>
                     <input type="file" id="imageFile" accept="image/*">
                 </div>
-
-                <div id="cameraGroup" class="hidden" style="display: flex; align-items: flex-end;">
-                    <div style="padding: 10px; background: #e3f2fd; color: #0d47a1; border-radius: 6px; width: 100%; text-align: center;">
-                        🤖 <b>라즈베리파이 카메라</b>가 작동합니다.
-                    </div>
-                </div>
             </div>
-
             <div class="grid-2">
                 <div><label>수분 (0~100)</label><input type="number" id="moisture" value="30"></div>
                 <div><label>유분 (0~100)</label><input type="number" id="sebum" value="70"></div>
             </div>
-
             <button class="btn-primary" onclick="reqAnalyze()">📸 분석 시작하기</button>
 
             <div id="result1Area" class="hidden" style="margin-top:20px;">
@@ -254,94 +232,31 @@
         }
 
         // 분석 요청
-        // 모드 전환 함수
-        function toggleMode() {
-            const mode = document.querySelector('input[name="scanMode"]:checked').value;
-            const uploadGroup = document.getElementById('uploadGroup');
-            const cameraGroup = document.getElementById('cameraGroup');
-            const moistInput = document.getElementById('moisture');
-            const sebumInput = document.getElementById('sebum');
-
-            if (mode === 'upload') {
-                uploadGroup.classList.remove('hidden');
-                cameraGroup.classList.add('hidden');
-                // 수동 입력 가능하게
-                moistInput.readOnly = false;
-                sebumInput.readOnly = false;
-                moistInput.style.backgroundColor = "white";
-                sebumInput.style.backgroundColor = "white";
-            } else {
-                uploadGroup.classList.add('hidden');
-                cameraGroup.classList.remove('hidden');
-                // 센서값은 자동으로 들어오므로 입력 막기
-                moistInput.readOnly = true;
-                sebumInput.readOnly = true;
-                moistInput.value = "0"; // 측정 대기 상태
-                sebumInput.value = "0";
-                moistInput.style.backgroundColor = "#e9ecef";
-                sebumInput.style.backgroundColor = "#e9ecef";
-            }
-        }
-
-        // 분석 요청 함수 (통합)
         async function reqAnalyze() {
-            if(!currentUser) return alert("로그인이 필요합니다.");
+            const fileInput = document.getElementById('imageFile');
+            if(fileInput.files.length === 0) return alert("사진을 선택해주세요.");
 
-            const mode = document.querySelector('input[name="scanMode"]:checked').value;
+            const formData = new FormData();
+            formData.append("user_id", currentUser.user_id);
+            formData.append("moisture", document.getElementById('moisture').value);
+            formData.append("sebum", document.getElementById('sebum').value);
+            formData.append("file", fileInput.files[0]);
 
-            // [A] 파일 업로드 모드 (기존 방식)
-            if (mode === 'upload') {
-                const fileInput = document.getElementById('imageFile');
-                if(fileInput.files.length === 0) return alert("사진을 선택해주세요.");
+            try {
+                const res = await fetch('/analyze', { method: 'POST', body: formData });
+                const data = await res.json();
+                if(!res.ok) throw new Error(data.detail);
 
-                const formData = new FormData();
-                formData.append("user_id", currentUser.user_id);
-                formData.append("moisture", document.getElementById('moisture').value);
-                formData.append("sebum", document.getElementById('sebum').value);
-                formData.append("file", fileInput.files[0]);
+                document.getElementById('result1Area').classList.remove('hidden');
+                document.getElementById('result1').innerText = JSON.stringify(data, null, 2);
 
-                try {
-                    const res = await fetch('/analyze', { method: 'POST', body: formData });
-                    const data = await res.json();
-                    if(!res.ok) throw new Error(data.detail);
-                    handleAnalyzeSuccess(data);
-                } catch (err) { alert(err); }
-            }
-
-            // [B] 라즈베리파이 촬영 모드 (새로운 방식)
-            else {
-                const formData = new FormData();
-                formData.append("user_id", currentUser.user_id);
-
-                try {
-                    alert("📸 촬영을 시작합니다. 잠시만 기다려주세요...");
-                    // 센서와 카메라를 작동시키는 API 호출
-                    const res = await fetch('/analyze-hardware', { method: 'POST', body: formData });
-                    const data = await res.json();
-
-                    if(!res.ok) throw new Error(data.detail);
-
-                    // 측정된 센서값 화면에 표시
-                    document.getElementById('moisture').value = data.sensor_data.moisture;
-                    document.getElementById('sebum').value = data.sensor_data.sebum;
-
-                    handleAnalyzeSuccess(data);
-                    alert("✅ 촬영 및 분석이 완료되었습니다!");
-                } catch (err) { alert("하드웨어 오류: " + err); }
-            }
-        }
-
-        // 성공 처리 공통 함수
-        function handleAnalyzeSuccess(data) {
-            document.getElementById('result1Area').classList.remove('hidden');
-            document.getElementById('result1').innerText = JSON.stringify(data.gpt_result, null, 2);
-
-            if(data.analysis_id) {
-                currentAnalysisId = data.analysis_id;
-                document.getElementById('savedAnalysisId').innerText = currentAnalysisId;
-                document.getElementById('step2Card').classList.remove('hidden');
-                document.getElementById('step2Card').scrollIntoView({ behavior: 'smooth' });
-            }
+                if(data.analysis_id) {
+                    currentAnalysisId = data.analysis_id;
+                    document.getElementById('savedAnalysisId').innerText = currentAnalysisId;
+                    document.getElementById('step2Card').classList.remove('hidden');
+                    document.getElementById('step2Card').scrollIntoView({ behavior: 'smooth' });
+                }
+            } catch (err) { alert(err); }
         }
 
         // 추천 요청

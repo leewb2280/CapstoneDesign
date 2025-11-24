@@ -259,37 +259,6 @@ async def analyze_skin_endpoint(
                 pass
 
 
-@app.post("/analyze-hardware", tags=["Kiosk"])
-async def analyze_hardware_endpoint(user_id: str = Form(...)):
-    """
-    [하드웨어 전용]
-    파일 업로드 없이, 라즈베리파이가 직접 촬영하고 센서를 읽어서 분석합니다.
-    """
-    logger.info(f"📸 하드웨어 촬영 및 분석 요청: {user_id}")
-
-    try:
-        # 1. 하드웨어 제어 (사진 촬영 + 센서 읽기)
-        # hardware_capture 함수는 (이미지경로, 수분, 유분)을 반환함
-        img_path, moist, seb = hardware_capture()
-
-        # 2. 분석 수행
-        result = perform_skin_analysis(user_id, img_path, moist, seb)
-
-        if not result:
-            raise HTTPException(status_code=500, detail="AI Analysis Failed")
-
-        # 3. 결과 반환 (센서값도 같이 보내줌, 화면에 띄우기 위해)
-        return {
-            "message": "Hardware Analysis successful",
-            "analysis_id": result["analysis_id"],
-            "gpt_result": result["gpt_result"],
-            "sensor_data": {"moisture": moist, "sebum": seb}  # 웹 화면 업데이트용
-        }
-
-    except Exception as e:
-        logger.error(f"Hardware Analyze Error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
 @app.post("/recommend", tags=["Mobile App"])
 async def recommend_endpoint(req: RecommendRequest):
     """
