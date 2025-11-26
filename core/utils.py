@@ -392,7 +392,7 @@ def get_user_history_db(user_id):
             # r[4]: img_path, r[5]~r[11]: scores
 
             top3 = json.loads(r[2]) if r[2] else []
-            
+
             # 이미지 경로가 없거나 파일이 없으면 기본 이미지 처리 (프론트에서 처리하도록 None 보냄)
             img_path = r[4] if r[4] else None
 
@@ -403,8 +403,8 @@ def get_user_history_db(user_id):
                 "date": str(r[3]),
                 "image_path": img_path,
                 "scores": {
-                    "acne": r[5], "wrinkles": r[6], "pores": r[7], 
-                    "pigmentation": r[8], "redness": r[9], 
+                    "acne": r[5], "wrinkles": r[6], "pores": r[7],
+                    "pigmentation": r[8], "redness": r[9],
                     "moisture": r[10], "sebum": r[11]
                 }
             })

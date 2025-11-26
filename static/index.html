@@ -337,6 +337,20 @@
                 </div>
             </div>
         </div>
+
+        <div class="card" style="border: 1px solid #cbd5e1; background-color: #f8fafc;">
+            <h3>🛠 관리자 메뉴 (데이터 업데이트)</h3>
+            <p style="color:var(--text-light); font-size:0.9em;">새로운 화장품 데이터를 크롤링하여 DB를 갱신합니다.</p>
+            <div class="grid-2">
+                <div>
+                    <label>관리자 키</label>
+                    <input type="password" id="adminKey" placeholder="admin1234">
+                </div>
+                <div>
+                    <label>&nbsp;</label> <button class="btn-danger" onclick="reqUpdateProducts()">🔄 제품 데이터 업데이트 실행</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Detail Modal -->
@@ -686,6 +700,40 @@
         function closeModal(e) {
             if (e.target === e.currentTarget || e.target.classList.contains('close-btn')) {
                 document.getElementById('detailModal').classList.add('hidden');
+            }
+        }
+
+        // [추가됨] 관리자 제품 업데이트 요청
+        async function reqUpdateProducts() {
+            const secretKey = document.getElementById('adminKey').value;
+            if (!secretKey) return alert("관리자 키를 입력해주세요.");
+
+            // main.py가 Form 데이터(secret_key)를 요구하므로 FormData 사용
+            const formData = new FormData();
+            formData.append("secret_key", secretKey);
+
+            const btn = event.target;
+            const originalText = btn.innerText;
+            btn.innerText = "🚀 요청 중...";
+            btn.disabled = true;
+
+            try {
+                const res = await fetch('/update-products', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+
+                if (res.ok) {
+                    alert("✅ 성공: " + data.message + "\n(백그라운드에서 작업이 진행됩니다.)");
+                } else {
+                    alert("❌ 실패: " + data.detail); // 키가 틀리면 여기서 걸러짐
+                }
+            } catch (e) {
+                alert("서버 통신 오류: " + e);
+            } finally {
+                btn.innerText = originalText;
+                btn.disabled = false;
             }
         }
     </script>
