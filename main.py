@@ -55,7 +55,7 @@ app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
 
 # ==========================================
-# 2. 데이터 모델 (DTO)
+# 2. 웹(Web)용 데이터 모델 (DTO)
 # ==========================================
 class LifestyleData(BaseModel):
     sleep_hours_7d: float
@@ -82,6 +82,13 @@ class AuthRequest(BaseModel):
     password: str
     name: str = None
 
+
+# ==========================================
+# 2. 안드로이드용 데이터 모델 (DTO)
+# ==========================================
+class AndroidAuthRequest(BaseModel):
+    email: str      # 앱에서는 user_id 대신 email이라는 이름으로 보냄
+    password: str
 
 # ==========================================
 # 3. 하드웨어 제어 로직 (Hardware Control)
@@ -140,7 +147,65 @@ def hardware_capture():
 
 
 # ==========================================
-# 4. API 엔드포인트 (Endpoints)
+# 안드로이드 앱용 API 엔드포인트
+# ==========================================
+
+# 1. 회원가입 (앱 경로: POST /auth/signup)
+@app.post("/auth/signup", tags=["Android"])
+async def signup_android(req: AndroidAuthRequest):
+    # 앱은 email을 보내지만, DB에는 user_id로 저장
+    user_id = req.email
+    password = req.password
+
+    if not user_id or not password:
+        return {"success": False, "message": "이메일과 비밀번호를 입력하세요.", "token": None}
+
+    success = register_user_db(user_id, password, "User")  # 이름은 임시로 User
+
+    if not success:
+        # 앱의 AuthResponse 형식에 맞춰서 리턴
+        return {"success": False, "message": "이미 존재하는 계정입니다.", "token": None}
+
+    return {"success": True, "message": "회원가입 성공!", "token": "dummy_token_123"}
+
+
+# 2. 로그인 (앱 경로: POST /auth/login)
+@app.post("/auth/login", tags=["Android"])
+async def login_android(req: AndroidAuthRequest):
+    user_id = req.email
+    password = req.password
+
+    user = authenticate_user_db(user_id, password)
+
+    if not user:
+        return {"success": False, "message": "아이디 또는 비밀번호 오류", "token": None}
+
+    # 로그인 성공 시 앱이 원하는 포맷 (success, message, token)
+    return {
+        "success": True,
+        "message": f"환영합니다, {user['name']}님!",
+        "token": f"token_for_{user_id}"  # 임시 토큰 발행
+    }
+
+
+# 3. 홈 화면 - 피부 기록 (앱 경로: GET /skin/history)
+# 앱에서는 Header에 토큰을 넣어 보내지만, 여기선 간단히 테스트용 더미 데이터 반환
+@app.get("/skin/history", tags=["Android"])
+async def history_android():
+    # 실제로는 토큰을 해석해서 user_id를 찾아야 하지만,
+    # 일단 연결 테스트를 위해 최근 데이터를 임의로 보냅니다.
+    # 앱의 SkinResult 데이터 클래스 구조와 맞춰야 함 (여기선 예시)
+    return [
+        {
+            "date": "2025-11-26",
+            "score": 85,
+            "comment": "수분 상태가 좋습니다."
+        }
+    ]
+
+
+# ==========================================
+# 4. 웹(Web)용 API 엔드포인트
 # ==========================================
 
 @app.get("/", tags=["General"])
