@@ -250,6 +250,18 @@
             background: #f1f5f9;
             border-color: #cbd5e1;
         }
+        /* [신규 스타일] 날짜 입력창 */
+        .date-input {
+            padding: 6px 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            color: #334155;
+            font-family: inherit;
+            outline: none;
+        }
+        .date-input:focus {
+            border-color: var(--primary);
+        }
     </style>
 </head>
 
@@ -396,10 +408,10 @@
         <div class="card">
             <h3 style="margin-bottom: 16px;">📅 피부 분석 기록 (히스토리)</h3>
 
-            <div class="filter-bar">
+            <div class="filter-bar" style="flex-wrap: wrap; gap: 10px;">
                 <div style="display:flex; align-items:center; gap:8px;">
-                    <label style="font-weight:600; font-size:0.9em;">🔍 조건 검색:</label>
-                    <select id="historyFilter" style="width:auto; margin:0; padding:6px;" onchange="reqHistory(1)">
+                    <label style="font-weight:600; font-size:0.9em;">🔍 조건:</label>
+                    <select id="historyFilter" style="width:auto; margin:0; padding:6px;">
                         <option value="">전체 보기</option>
                         <option value="dry">💧 건성 (수분 부족)</option>
                         <option value="oily">🛢 지성 (유분 과다)</option>
@@ -410,7 +422,18 @@
                         <option value="good">✨ 피부 상태 좋은 날</option>
                     </select>
                 </div>
-                <button class="btn-primary btn-sm" onclick="reqHistory(1)">조회</button>
+
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <label style="font-weight:600; font-size:0.9em;">📅 기간:</label>
+                    <input type="date" id="startDate" class="date-input">
+                    <span style="color:#64748b;">~</span>
+                    <input type="date" id="endDate" class="date-input">
+                </div>
+
+                <div style="display:flex; gap:8px;">
+                    <button class="btn-primary btn-sm" onclick="reqHistory(1)">조회</button>
+                    <button class="btn-logout" onclick="resetFilters()" style="padding:6px 12px; font-size:14px;">초기화</button>
+                </div>
             </div>
 
             <div id="historyArea" class="hidden">
@@ -741,26 +764,28 @@
         async function reqHistory(page) {
             if (!currentUser) return;
 
-            // 페이지 번호 설정 (인자가 없으면 현재 페이지 유지)
             if (page) currentPage = page;
 
-            // 선택된 필터 값 가져오기
+            // 1. 입력값 가져오기
             const filterVal = document.getElementById('historyFilter').value;
+            const startVal = document.getElementById('startDate').value;
+            const endVal = document.getElementById('endDate').value;
 
             try {
-                // [핵심] 서버의 /history/search 엔드포인트 호출
-                // URL 생성: /history/search?user_id=...&page=...&condition=...
+                // 2. URL 생성 (쿼리 파라미터 조립)
+                // 기본: /history/search?user_id=...&page=...
                 let url = `/history/search?user_id=${currentUser.user_id}&page=${currentPage}`;
-                if (filterVal) {
-                    url += `&condition=${filterVal}`;
-                }
 
+                if (filterVal) url += `&condition=${filterVal}`;
+                if (startVal) url += `&start_date=${startVal}`;
+                if (endVal) url += `&end_date=${endVal}`;
+
+                // 3. 서버 요청
                 const res = await fetch(url);
                 const responseJson = await res.json();
 
-                // 서버 응답 구조: { status: "success", filter: "...", data: { records: [], total_pages: ... } }
                 const resultData = responseJson.data;
-                historyData = resultData.records; // 차트/모달용 데이터 갱신
+                historyData = resultData.records;
                 totalPages = resultData.total_pages;
 
                 renderHistoryUI(); // 화면 그리기
@@ -769,6 +794,14 @@
                 console.error("히스토리 로드 실패:", e);
                 alert("기록을 불러오는 중 오류가 발생했습니다.");
             }
+        }
+
+        // [신규] 필터 초기화 함수
+        function resetFilters() {
+            document.getElementById('historyFilter').value = "";
+            document.getElementById('startDate').value = "";
+            document.getElementById('endDate').value = "";
+            reqHistory(1); // 초기화 후 즉시 조회
         }
 
         // 2. UI 렌더링 (테이블 + 차트 + 페이지네이션)

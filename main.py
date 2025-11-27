@@ -385,18 +385,31 @@ async def update_profile_endpoint(req: UserProfileRequest):
 async def search_history_endpoint(
     user_id: str,
     condition: Optional[str] = None,
+    start_date: Optional[str] = None, # [New] 2025-11-01
+    end_date: Optional[str] = None,   # [New] 2025-11-30
     page: int = 1
 ):
-    # 1. 회원 확인
+    """
+    [히스토리 검색 API]
+    - condition: 피부 상태 조건 (dry, oily 등)
+    - start_date / end_date: 조회하고 싶은 기간 (YYYY-MM-DD 형식)
+    """
     if not check_user_exists_db(user_id):
         raise HTTPException(status_code=401, detail="존재하지 않는 회원입니다.")
 
-    # 2. DB 조회 (utils.py의 함수 호출)
-    result = search_skin_history_db(user_id, condition, page)
+    # 수정된 함수 호출 (인자가 늘어남)
+    result = search_skin_history_db(
+        user_id=user_id,
+        condition=condition,
+        start_date=start_date,
+        end_date=end_date,
+        page=page
+    )
 
     return {
         "status": "success",
         "filter": condition if condition else "all",
+        "period": {"start": start_date, "end": end_date}, # 기간 정보도 응답에 포함
         "data": result
     }
 

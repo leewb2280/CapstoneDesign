@@ -527,7 +527,14 @@ def check_user_exists_db(user_id):
         return False
 
 
-def search_skin_history_db(user_id: str, condition: str = None, page: int = 1, page_size: int = 20):
+def search_skin_history_db(
+        user_id: str,
+        condition: str = None,
+        start_date: str = None,  # [New] 검색 시작일 (YYYY-MM-DD)
+        end_date: str = None,  # [New] 검색 종료일 (YYYY-MM-DD)
+        page: int = 1,
+        page_size: int = 50
+):
     try:
         conn = psycopg2.connect(**DB_CONFIG)
         cursor = conn.cursor()
@@ -536,23 +543,34 @@ def search_skin_history_db(user_id: str, condition: str = None, page: int = 1, p
         base_query = "FROM analysis_log WHERE user_id = %s"
         params = [user_id]
 
-        # 2. [변경점] 필터 적용 로직이 아주 깔끔해짐!
+        # 2. [기존] 상태 조건 필터 적용
         if condition:
-            filter_result = get_filter_query(condition)  # 외부 파일에 질문
-
+            filter_result = get_filter_query(condition)
             if filter_result:
                 sql_part, val = filter_result
-                base_query += f" {sql_part}"  # SQL 붙이기
-
-                if val is not None:  # 파라미터가 있는 경우만 추가
+                base_query += f" {sql_part}"
+                if val is not None:
                     params.append(val)
 
-        # 3. 개수 세기 (Pagination용)
+        # 3. [신규] 날짜 기간 필터 적용
+        # 사용자가 날짜를 입력했다면 WHERE 절에 추가
+        if start_date:
+            base_query += " AND created_at >= %s"
+            params.append(start_date)  # 예: '2025-11-01'
+
+        if end_date:
+            # 해당 날짜의 23시 59분까지 포함하기 위해 날짜 처리가 필요할 수 있지만
+            # 여기서는 편의상 입력된 날짜(00시 00분) 기준으로 처리하거나
+            # 프론트에서 시간을 붙여서 보내는 것을 가정합니다.
+            base_query += " AND created_at <= %s"
+            params.append(end_date + " 23:59:59")  # 그 날짜의 마지막 시간까지 포함
+
+        # 4. 개수 세기 (Pagination용)
         count_sql = f"SELECT COUNT(*) {base_query}"
         cursor.execute(count_sql, tuple(params))
         total_count = cursor.fetchone()[0]
 
-        # 4. 데이터 조회
+        # 5. 데이터 조회
         offset = (page - 1) * page_size
         data_sql = f"""
             SELECT id, created_at, moisture, sebum, redness, pores, wrinkles, acne
@@ -560,7 +578,6 @@ def search_skin_history_db(user_id: str, condition: str = None, page: int = 1, p
             ORDER BY created_at DESC
             LIMIT %s OFFSET %s
         """
-        # params 리스트에 limit, offset 추가
         full_params = params + [page_size, offset]
 
         cursor.execute(data_sql, tuple(full_params))
@@ -569,7 +586,6 @@ def search_skin_history_db(user_id: str, condition: str = None, page: int = 1, p
         cursor.close()
         conn.close()
 
-        # 5. 결과 변환 (기존과 동일)
         records = []
         for r in rows:
             records.append({
