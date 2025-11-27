@@ -124,7 +124,7 @@ def run_skin_advisor(user_id: str, analysis_id: int, lifestyle: dict, user_pref:
 
     save_training_log_db(user_id, payload) # AI 학습용 데이터 저장
 
-    logger.info(f"✨ [Advisor] 분석 완료 (피부나이: {skin_age}세, 트러블확률: {int(raw_prob * 100)}%)")
+    logger.info(f"✨ [Advisor] 분석 완료")
 
     return {
         "user_id": user_id,
