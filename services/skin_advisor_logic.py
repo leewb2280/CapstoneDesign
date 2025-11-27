@@ -1,4 +1,4 @@
-# analysis_logic.py
+# skin_advisor_logic.py
 """
 [핵심 로직 담당]
 수집된 데이터(피부, 환경, 사용자)를 분석하여 피부 상태를 진단하고,

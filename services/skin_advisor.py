@@ -20,7 +20,7 @@ from core.utils import (
     save_recommendation_to_db
 )
 # 분석 로직 엔진
-from .analysis_logic import SkinCareAdvisor
+from .skin_advisor_logic import SkinCareAdvisor
 
 # 로깅 설정
 logging.basicConfig(level=logging.INFO)
