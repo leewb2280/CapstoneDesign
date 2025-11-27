@@ -10,6 +10,7 @@ import shutil
 import uuid
 import random
 import logging
+from typing import Optional
 
 # [수정 1] StaticFiles 임포트 추가
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException, BackgroundTasks
@@ -25,7 +26,8 @@ from services.data_collector import run_data_collection
 from core.utils import (
     register_user_db, authenticate_user_db, get_user_history_db,
     create_user_table, check_user_exists_db,
-    save_user_profile_db, get_user_profile_db
+    save_user_profile_db, get_user_profile_db,
+    search_skin_history_db
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -363,12 +365,6 @@ async def login_endpoint(req: AuthRequest):
     return {"message": "로그인 성공", "user_info": user}
 
 
-@app.get("/history/{user_id}", tags=["Auth"])
-async def history_endpoint(user_id: str):
-    history = get_user_history_db(user_id)
-    return {"user_id": user_id, "history": history}
-
-
 # [신규 엔드포인트] 사용자 정보 저장/수정 (설정 페이지용)
 @app.post("/user/profile", tags=["User"])
 async def update_profile_endpoint(req: UserProfileRequest):
@@ -384,6 +380,25 @@ async def update_profile_endpoint(req: UserProfileRequest):
     else:
         raise HTTPException(status_code=500, detail="DB 저장 실패")
 
+
+@app.get("/history/search", tags=["History"])
+async def search_history_endpoint(
+    user_id: str,
+    condition: Optional[str] = None,
+    page: int = 1
+):
+    # 1. 회원 확인
+    if not check_user_exists_db(user_id):
+        raise HTTPException(status_code=401, detail="존재하지 않는 회원입니다.")
+
+    # 2. DB 조회 (utils.py의 함수 호출)
+    result = search_skin_history_db(user_id, condition, page)
+
+    return {
+        "status": "success",
+        "filter": condition if condition else "all",
+        "data": result
+    }
 
 if __name__ == "__main__":
     import uvicorn

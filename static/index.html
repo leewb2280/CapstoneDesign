@@ -212,6 +212,44 @@
             font-weight: 600;
             color: var(--text-light);
         }
+        /* [신규 스타일] 히스토리 필터 및 페이지네이션 */
+        .filter-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #f8fafc;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            border: 1px solid var(--border);
+        }
+
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 16px;
+            margin-top: 16px;
+        }
+
+        .page-btn {
+            background: white;
+            border: 1px solid var(--border);
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            color: var(--text);
+            font-weight: 600;
+        }
+        .page-btn:disabled {
+            background: #f3f4f6;
+            color: #9ca3af;
+            cursor: not-allowed;
+        }
+        .page-btn:hover:not(:disabled) {
+            background: #f1f5f9;
+            border-color: #cbd5e1;
+        }
     </style>
 </head>
 
@@ -356,26 +394,47 @@
         </div>
 
         <div class="card">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-                <h3 style="margin:0;">📅 피부 분석 기록</h3>
-                <button class="btn-primary btn-sm" onclick="reqHistory()">새로고침</button>
+            <h3 style="margin-bottom: 16px;">📅 피부 분석 기록 (히스토리)</h3>
+
+            <div class="filter-bar">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <label style="font-weight:600; font-size:0.9em;">🔍 조건 검색:</label>
+                    <select id="historyFilter" style="width:auto; margin:0; padding:6px;" onchange="reqHistory(1)">
+                        <option value="">전체 보기</option>
+                        <option value="dry">💧 건성 (수분 부족)</option>
+                        <option value="oily">🛢 지성 (유분 과다)</option>
+                        <option value="sensitive">😳 민감성 (홍조)</option>
+                        <option value="pore">🍊 모공 고민</option>
+                        <option value="acne">🚨 트러블 심한 날</option>
+                        <option value="wrinkle">📉 탄력 저하</option>
+                        <option value="good">✨ 피부 상태 좋은 날</option>
+                    </select>
+                </div>
+                <button class="btn-primary btn-sm" onclick="reqHistory(1)">조회</button>
             </div>
 
             <div id="historyArea" class="hidden">
                 <div style="height:300px; margin-bottom:24px;">
                     <canvas id="historyChart"></canvas>
                 </div>
+
                 <div style="overflow-x:auto;">
                     <table id="historyTable">
                         <thead>
                             <tr>
                                 <th>날짜</th>
-                                <th>피부나이</th>
+                                <th>상태 요약</th>
                                 <th>상세보기</th>
                             </tr>
                         </thead>
                         <tbody></tbody>
                     </table>
+                </div>
+
+                <div class="pagination">
+                    <button class="page-btn" id="btnPrev" onclick="changePage(-1)">Example Prev</button>
+                    <span id="pageIndicator" style="font-weight:bold; color:var(--primary);">1 / 1</span>
+                    <button class="page-btn" id="btnNext" onclick="changePage(1)">Next ▶</button>
                 </div>
             </div>
         </div>
@@ -674,66 +733,124 @@
             } catch (err) { alert(err); }
         }
 
-        // 히스토리 요청
-        async function reqHistory() {
+        // [전역 변수 추가]
+        let currentPage = 1;
+        let totalPages = 1;
+
+        // 1. 히스토리 요청 (필터 + 페이징 적용)
+        async function reqHistory(page) {
             if (!currentUser) return;
+
+            // 페이지 번호 설정 (인자가 없으면 현재 페이지 유지)
+            if (page) currentPage = page;
+
+            // 선택된 필터 값 가져오기
+            const filterVal = document.getElementById('historyFilter').value;
+
             try {
-                const res = await fetch(`/history/${currentUser.user_id}`);
-                const data = await res.json();
-                historyData = data.history;
-
-                const tbody = document.querySelector('#historyTable tbody');
-                tbody.innerHTML = "";
-
-                if (historyData.length === 0) {
-                    tbody.innerHTML = "<tr><td colspan='3'>기록이 없습니다.</td></tr>";
-                    document.getElementById('historyArea').classList.remove('hidden');
-                    return;
+                // [핵심] 서버의 /history/search 엔드포인트 호출
+                // URL 생성: /history/search?user_id=...&page=...&condition=...
+                let url = `/history/search?user_id=${currentUser.user_id}&page=${currentPage}`;
+                if (filterVal) {
+                    url += `&condition=${filterVal}`;
                 }
 
+                const res = await fetch(url);
+                const responseJson = await res.json();
+
+                // 서버 응답 구조: { status: "success", filter: "...", data: { records: [], total_pages: ... } }
+                const resultData = responseJson.data;
+                historyData = resultData.records; // 차트/모달용 데이터 갱신
+                totalPages = resultData.total_pages;
+
+                renderHistoryUI(); // 화면 그리기
+
+            } catch (e) {
+                console.error("히스토리 로드 실패:", e);
+                alert("기록을 불러오는 중 오류가 발생했습니다.");
+            }
+        }
+
+        // 2. UI 렌더링 (테이블 + 차트 + 페이지네이션)
+        function renderHistoryUI() {
+            const area = document.getElementById('historyArea');
+            const tbody = document.querySelector('#historyTable tbody');
+            tbody.innerHTML = "";
+
+            if (historyData.length === 0) {
+                tbody.innerHTML = "<tr><td colspan='3' style='text-align:center; padding:20px;'>해당 조건의 기록이 없습니다.</td></tr>";
+                // 데이터 없으면 차트 숨기거나 빈 차트 표시 (여기선 유지)
+            } else {
+                // 테이블 그리기
                 historyData.forEach((item, index) => {
+                    // 점수 요약 문자열 만들기
+                    let summary = `나이 ${item.skin_age}세`;
+                    if (item.scores.moisture < 30) summary += " | 💧건조";
+                    if (item.scores.sebum > 70) summary += " | 🛢지성";
+                    if (item.scores.acne > 50) summary += " | 🚨트러블";
+
                     tbody.innerHTML += `<tr>
-                        <td>${item.date.split(' ')[0]}</td>
-                        <td>${item.skin_age}세</td>
+                        <td>${item.date}</td>
+                        <td>${summary}</td>
                         <td><button class="btn-primary btn-sm" onclick="openModal(${index})">보기</button></td>
                     </tr>`;
                 });
+            }
 
-                document.getElementById('historyArea').classList.remove('hidden');
-                renderChart(historyData);
+            // 차트 업데이트 (현재 페이지 데이터만 표시)
+            renderChart(historyData);
 
-            } catch (e) { console.error(e); }
+            // 페이지네이션 버튼 상태 업데이트
+            document.getElementById('pageIndicator').innerText = `${currentPage} / ${totalPages === 0 ? 1 : totalPages}`;
+            document.getElementById('btnPrev').disabled = (currentPage <= 1);
+            document.getElementById('btnNext').disabled = (currentPage >= totalPages);
+
+            area.classList.remove('hidden');
         }
 
-        // 차트 렌더링
+        // 3. 페이지 변경 버튼 핸들러
+        function changePage(delta) {
+            const nextPage = currentPage + delta;
+            if (nextPage > 0 && nextPage <= totalPages) {
+                reqHistory(nextPage);
+            }
+        }
+
+        // [수정] 차트 렌더링 함수 (수분 vs 유분 비교)
         function renderChart(data) {
             const ctx = document.getElementById('historyChart').getContext('2d');
+
+            // 1. 날짜순 정렬 (과거 -> 현재)
+            // 데이터가 '최신순'으로 오기 때문에, 그래프는 왼쪽이 과거가 되도록 뒤집어야 보기 편합니다.
             const sortedData = [...data].sort((a, b) => new Date(a.date) - new Date(b.date));
 
-            const labels = sortedData.map(d => d.date.split(' ')[0]);
-            const ages = sortedData.map(d => d.skin_age);
-            const moistures = sortedData.map(d => d.scores ? d.scores.moisture : 0);
+            // 2. 데이터 추출
+            const labels = sortedData.map(d => d.date.split(' ')[0]); // 날짜만 (YYYY-MM-DD)
+            const moistures = sortedData.map(d => d.scores.moisture); // 수분 점수
+            const sebums = sortedData.map(d => d.scores.sebum);       // 유분 점수
 
+            // 3. 기존 차트가 있으면 삭제 (중복 생성 방지)
             if (myChart) myChart.destroy();
 
+            // 4. 새 차트 생성
             myChart = new Chart(ctx, {
                 type: 'line',
                 data: {
                     labels: labels,
                     datasets: [
                         {
-                            label: '피부 나이',
-                            data: ages,
-                            borderColor: '#ef4444',
-                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                            label: '💧 수분도',
+                            data: moistures,
+                            borderColor: '#3b82f6', // 파란색
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
                             tension: 0.3,
                             fill: true
                         },
                         {
-                            label: '수분도',
-                            data: moistures,
-                            borderColor: '#10b981',
-                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            label: '🛢 유분도',
+                            data: sebums,
+                            borderColor: '#f59e0b', // 노란색
+                            backgroundColor: 'rgba(245, 158, 11, 0.1)',
                             tension: 0.3,
                             fill: true
                         }
@@ -743,8 +860,15 @@
                     responsive: true,
                     maintainAspectRatio: false,
                     scales: {
-                        y: { beginAtZero: true }
-                    }
+                        y: {
+                            beginAtZero: true,
+                            max: 100 // 점수는 100점 만점
+                        }
+                    },
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
                 }
             });
         }

@@ -20,6 +20,8 @@ import numpy as np
 # 설정 파일 로드 (DB 접속 정보, 모델 경로 등)
 from services.config import *
 
+from services.filters import get_filter_query
+
 # 로깅 설정
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -523,6 +525,74 @@ def check_user_exists_db(user_id):
         return True if exists else False
     except:
         return False
+
+
+def search_skin_history_db(user_id: str, condition: str = None, page: int = 1, page_size: int = 20):
+    try:
+        conn = psycopg2.connect(**DB_CONFIG)
+        cursor = conn.cursor()
+
+        # 1. 기본 쿼리
+        base_query = "FROM analysis_log WHERE user_id = %s"
+        params = [user_id]
+
+        # 2. [변경점] 필터 적용 로직이 아주 깔끔해짐!
+        if condition:
+            filter_result = get_filter_query(condition)  # 외부 파일에 질문
+
+            if filter_result:
+                sql_part, val = filter_result
+                base_query += f" {sql_part}"  # SQL 붙이기
+
+                if val is not None:  # 파라미터가 있는 경우만 추가
+                    params.append(val)
+
+        # 3. 개수 세기 (Pagination용)
+        count_sql = f"SELECT COUNT(*) {base_query}"
+        cursor.execute(count_sql, tuple(params))
+        total_count = cursor.fetchone()[0]
+
+        # 4. 데이터 조회
+        offset = (page - 1) * page_size
+        data_sql = f"""
+            SELECT id, created_at, moisture, sebum, redness, pores, wrinkles, acne
+            {base_query}
+            ORDER BY created_at DESC
+            LIMIT %s OFFSET %s
+        """
+        # params 리스트에 limit, offset 추가
+        full_params = params + [page_size, offset]
+
+        cursor.execute(data_sql, tuple(full_params))
+        rows = cursor.fetchall()
+
+        cursor.close()
+        conn.close()
+
+        # 5. 결과 변환 (기존과 동일)
+        records = []
+        for r in rows:
+            records.append({
+                "id": r[0],
+                "date": r[1].strftime("%Y-%m-%d %H:%M"),
+                "scores": {
+                    "moisture": r[2], "sebum": r[3],
+                    "redness": r[4], "pore": r[5],
+                    "wrinkles": r[6], "acne": r[7]
+                }
+            })
+
+        import math
+        return {
+            "total_count": total_count,
+            "total_pages": math.ceil(total_count / page_size),
+            "current_page": page,
+            "records": records
+        }
+
+    except Exception as e:
+        logger.error(f"히스토리 조회 실패: {e}")
+        return {"total_count": 0, "records": []}
 
 # 이 파일이 실행될 때 테이블이 없으면 생성하도록 설정
 if __name__ == "__main__":
