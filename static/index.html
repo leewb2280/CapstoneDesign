@@ -262,6 +262,38 @@
         .date-input:focus {
             border-color: var(--primary);
         }
+        .stats-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+            gap: 12px;
+            margin-bottom: 24px;
+            background: #f8fafc;
+            padding: 16px;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+        }
+        .stat-item {
+            background: white;
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            border: 1px solid #f1f5f9;
+        }
+        .stat-label {
+            font-size: 0.85em;
+            color: #64748b;
+            margin-bottom: 4px;
+        }
+        .stat-value {
+            font-size: 1.2em;
+            font-weight: 700;
+            color: #0f172a;
+        }
+        /* 점수에 따른 색상 포인트 */
+        .text-blue { color: #2563eb; }   /* 수분 */
+        .text-orange { color: #d97706; } /* 유분 */
+        .text-red { color: #dc2626; }    /* 트러블 */
     </style>
 </head>
 
@@ -437,6 +469,32 @@
             </div>
 
             <div id="historyArea" class="hidden">
+                <div id="statsPanel" class="hidden">
+                    <h4 style="margin: 0 0 10px 4px; font-size: 1em; color: #475569;">📊 선택 기간 평균 분석</h4>
+                    <div class="stats-container">
+                        <div class="stat-item">
+                            <div class="stat-label">피부 나이</div>
+                            <div class="stat-value" id="statAge">-</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">수분</div>
+                            <div class="stat-value text-blue" id="statMoist">-</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">유분</div>
+                            <div class="stat-value text-orange" id="statSebum">-</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">트러블</div>
+                            <div class="stat-value text-red" id="statAcne">-</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">주름</div>
+                            <div class="stat-value" id="statWrinkle">-</div>
+                        </div>
+                    </div>
+                </div>
+
                 <div style="height:300px; margin-bottom:24px;">
                     <canvas id="historyChart"></canvas>
                 </div>
@@ -790,6 +848,8 @@
 
                 renderHistoryUI(); // 화면 그리기
 
+                reqStats(startVal, endVal);
+
             } catch (e) {
                 console.error("히스토리 로드 실패:", e);
                 alert("기록을 불러오는 중 오류가 발생했습니다.");
@@ -979,6 +1039,40 @@
             } finally {
                 btn.innerText = originalText;
                 btn.disabled = false;
+            }
+        }
+        // [신규] 통계 데이터 요청 함수
+        async function reqStats(start, end) {
+            // 날짜가 하나라도 없으면 통계 패널 숨김
+            if (!start || !end) {
+                document.getElementById('statsPanel').classList.add('hidden');
+                return;
+            }
+
+            try {
+                // 서버에 통계 요청
+                const url = `/history/stats?user_id=${currentUser.user_id}&start_date=${start}&end_date=${end}`;
+                const res = await fetch(url);
+                const json = await res.json();
+
+                if (json.status === "success") {
+                    const d = json.data;
+                    // 화면에 값 채워넣기
+                    document.getElementById('statAge').innerText = d.avg_skin_age + "세";
+                    document.getElementById('statMoist').innerText = d.avg_moisture + "점";
+                    document.getElementById('statSebum').innerText = d.avg_sebum + "점";
+                    document.getElementById('statAcne').innerText = d.avg_acne + "점";
+                    document.getElementById('statWrinkle').innerText = d.avg_wrinkle + "점";
+
+                    // 패널 보여주기
+                    document.getElementById('statsPanel').classList.remove('hidden');
+                } else {
+                    // 데이터가 없거나 실패 시 숨김
+                    document.getElementById('statsPanel').classList.add('hidden');
+                }
+            } catch (e) {
+                console.error("통계 로드 실패:", e);
+                document.getElementById('statsPanel').classList.add('hidden');
             }
         }
     </script>

@@ -27,7 +27,7 @@ from core.utils import (
     register_user_db, authenticate_user_db, get_user_history_db,
     create_user_table, check_user_exists_db,
     save_user_profile_db, get_user_profile_db,
-    search_skin_history_db
+    search_skin_history_db, get_skin_period_stats_db
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -411,6 +411,32 @@ async def search_history_endpoint(
         "filter": condition if condition else "all",
         "period": {"start": start_date, "end": end_date}, # 기간 정보도 응답에 포함
         "data": result
+    }
+
+# [신규 API] 기간별 피부 통계 조회 (비교 분석용)
+@app.get("/history/stats", tags=["Analysis"])
+async def get_stats_endpoint(user_id: str, start_date: str, end_date: str):
+    """
+    [통계 분석 API]
+    지정된 기간(start_date ~ end_date) 동안의 피부 지표 평균을 반환합니다.
+    예: '지난주'와 '이번주'를 각각 호출하여 비교 그래프를 그릴 수 있습니다.
+    """
+    if not check_user_exists_db(user_id):
+        raise HTTPException(status_code=401, detail="존재하지 않는 회원입니다.")
+
+    stats = get_skin_period_stats_db(user_id, start_date, end_date)
+
+    if not stats:
+        return {
+            "status": "empty",
+            "message": "해당 기간에 데이터가 없습니다.",
+            "data": {}
+        }
+
+    return {
+        "status": "success",
+        "period": f"{start_date} ~ {end_date}",
+        "data": stats
     }
 
 if __name__ == "__main__":

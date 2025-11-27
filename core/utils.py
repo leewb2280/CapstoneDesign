@@ -610,7 +610,70 @@ def search_skin_history_db(
         logger.error(f"히스토리 조회 실패: {e}")
         return {"total_count": 0, "records": []}
 
-# 이 파일이 실행될 때 테이블이 없으면 생성하도록 설정
-if __name__ == "__main__":
-    create_user_table()
-    print("✅ 사용자 테이블 확인 완료")
+
+def get_skin_period_stats_db(user_id: str, start_date: str, end_date: str):
+    """
+    특정 기간 동안의 피부 상태 통계(평균 점수, 측정 횟수 등)를 계산하여 반환합니다.
+    """
+    try:
+        conn = psycopg2.connect(**DB_CONFIG)
+        cursor = conn.cursor()
+
+        # 1. 평균 점수 계산 (AVG 함수 사용)
+        # COALESCE(AVG(...), 0): 데이터가 없어서 NULL이 나오면 0으로 바꿔줌
+        stat_query = """
+            SELECT 
+                COUNT(*),
+                COALESCE(AVG(moisture), 0),
+                COALESCE(AVG(sebum), 0),
+                COALESCE(AVG(redness), 0),
+                COALESCE(AVG(pores), 0),
+                COALESCE(AVG(wrinkles), 0),
+                COALESCE(AVG(acne), 0)
+            FROM analysis_log
+            WHERE user_id = %s 
+              AND created_at >= %s 
+              AND created_at <= %s
+        """
+
+        # 날짜 포맷 맞추기 (시작일 00:00 ~ 종료일 23:59)
+        s_date = start_date
+        e_date = end_date + " 23:59:59"
+
+        cursor.execute(stat_query, (user_id, s_date, e_date))
+        row = cursor.fetchone()
+
+        # 2. 피부 나이 평균 계산 (recommendation_log 테이블 조회)
+        age_query = """
+            SELECT COALESCE(AVG(skin_age), 0)
+            FROM recommendation_log
+            WHERE user_id = %s 
+              AND created_at >= %s 
+              AND created_at <= %s
+        """
+        cursor.execute(age_query, (user_id, s_date, e_date))
+        avg_age = cursor.fetchone()[0]
+
+        cursor.close()
+        conn.close()
+
+        # 데이터가 하나도 없으면 0 리턴
+        count = row[0]
+        if count == 0:
+            return None
+
+        # 소수점 1자리까지 반올림하여 리턴
+        return {
+            "total_count": count,
+            "avg_moisture": round(row[1], 1),
+            "avg_sebum": round(row[2], 1),
+            "avg_redness": round(row[3], 1),
+            "avg_pore": round(row[4], 1),
+            "avg_wrinkle": round(row[5], 1),
+            "avg_acne": round(row[6], 1),
+            "avg_skin_age": round(avg_age, 1)
+        }
+
+    except Exception as e:
+        logger.error(f"통계 계산 실패: {e}")
+        return None
