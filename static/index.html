@@ -45,15 +45,12 @@
             margin-bottom: 20px;
         }
 
-        h2,
-        h3,
-        h4 {
+        h2, h3, h4 {
             margin-top: 0;
             color: #111827;
         }
 
-        input,
-        select {
+        input, select {
             width: 100%;
             padding: 10px;
             margin: 8px 0 16px;
@@ -61,6 +58,19 @@
             border-radius: 8px;
             box-sizing: border-box;
             font-size: 16px;
+        }
+
+        /* [기본값 스타일] 회색 기울임꼴 */
+        .default-value {
+            color: #9ca3af !important;
+            font-style: italic;
+        }
+
+        /* 입력 활성화 시 검은색 */
+        input:focus, select:focus,
+        input:not(.default-value), select:not(.default-value) {
+            color: #1f2937 !important;
+            font-style: normal;
         }
 
         button {
@@ -75,21 +85,10 @@
             color: white;
         }
 
-        .btn-primary {
-            background-color: var(--primary);
-        }
-
-        .btn-primary:hover {
-            background-color: var(--primary-hover);
-        }
-
-        .btn-success {
-            background-color: var(--success);
-        }
-
-        .btn-danger {
-            background-color: var(--danger);
-        }
+        .btn-primary { background-color: var(--primary); }
+        .btn-primary:hover { background-color: var(--primary-hover); }
+        .btn-success { background-color: var(--success); }
+        .btn-danger { background-color: var(--danger); }
 
         .btn-sm {
             padding: 6px 12px;
@@ -105,9 +104,7 @@
             padding: 6px 12px;
         }
 
-        .hidden {
-            display: none !important;
-        }
+        .hidden { display: none !important; }
 
         .grid-2 {
             display: grid;
@@ -151,6 +148,20 @@
             border: 1px solid var(--border);
         }
 
+        /* 안내 박스 스타일 */
+        .info-box {
+            background-color: #fff7ed;
+            border: 1px solid #fdba74;
+            color: #9a3412;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            font-size: 0.9em;
+            display: flex;
+            align-items: center;
+            line-height: 1.5; /* 줄간격 추가 */
+        }
+
         /* Modal */
         .modal {
             position: fixed;
@@ -191,8 +202,7 @@
             margin-top: 10px;
         }
 
-        th,
-        td {
+        th, td {
             padding: 12px;
             text-align: left;
             border-bottom: 1px solid var(--border);
@@ -201,28 +211,6 @@
         th {
             font-weight: 600;
             color: var(--text-light);
-        }
-        /* [추가] 기본값(아직 저장 안 됨)일 때 적용할 스타일 */
-        .default-value {
-            color: #9ca3af !important; /* 회색 (Gray-400) */
-            font-style: italic;        /* 기울임꼴로 힌트 느낌 강조 */
-        }
-        /* 사용자가 입력하려고 클릭(Focus)하거나 값을 바꾸면 검은색으로 */
-        input:focus, select:focus,
-        input:not(.default-value), select:not(.default-value) {
-            color: #1f2937 !important; /* 진한 검은색 */
-            font-style: normal;
-        }
-        .info-box {
-            background-color: #fff7ed;
-            border: 1px solid #fdba74;
-            color: #9a3412;
-            padding: 12px;
-            border-radius: 8px;
-            margin-bottom: 16px;
-            font-size: 0.9em;
-            display: flex;
-            align-items: center;
         }
     </style>
 </head>
@@ -234,7 +222,6 @@
         <button class="btn-logout" onclick="logout()">로그아웃</button>
     </div>
 
-    <!-- Auth Container -->
     <div id="authContainer" class="card auth-container">
         <div id="loginForm">
             <h2>👋 환영합니다</h2>
@@ -260,10 +247,8 @@
         </div>
     </div>
 
-    <!-- Main App -->
     <div id="mainApp" class="container hidden">
 
-        <!-- Step 1: Analysis -->
         <div class="card">
             <h3>📸 STEP 1. 피부 분석</h3>
             <div class="grid-2">
@@ -277,8 +262,8 @@
                 </div>
             </div>
             <div class="grid-2">
-                <div><label>수분 (0~100)</label><input type="number" id="moisture" value="30"></div>
-                <div><label>유분 (0~100)</label><input type="number" id="sebum" value="70"></div>
+                <div><label>수분 (센서값)</label><input type="number" id="moisture" value="30"></div>
+                <div><label>유분 (센서값)</label><input type="number" id="sebum" value="70"></div>
             </div>
             <div style="margin-bottom: 20px; padding: 15px; background: #e0f2fe; border-radius: 8px; border: 1px solid #bae6fd;">
                 <h4 style="margin-top:0; color:#0369a1;">🤖 키오스크 모드 (라즈베리파이)</h4>
@@ -291,6 +276,15 @@
 
             <div id="result1Area" class="hidden" style="margin-top:20px;">
                 <h4>📊 1단계 분석 결과</h4>
+
+                <div style="background: #f0fdf4; border: 2px solid #bbf7d0; border-radius: 12px; padding: 24px; text-align: center; margin-bottom: 16px;">
+                    <h2 style="margin:0; color:#166534; font-size: 1.2rem;">✨ 피부 종합 점수</h2>
+                    <div style="font-size: 4rem; font-weight: 800; color: #15803d; margin: 8px 0;">
+                        <span id="displayScore">0</span><span style="font-size: 1.5rem; color:#86efac;">점</span>
+                    </div>
+                    <p style="margin:0; color:#16a34a; font-size: 0.9rem;">(100점 만점 / 높을수록 좋은 상태)</p>
+                </div>
+
                 <pre id="result1"></pre>
             </div>
         </div>
@@ -300,43 +294,59 @@
             <p style="color:var(--text-light); font-size:0.9em;">분석 ID: <span id="savedAnalysisId" style="font-weight:bold;">None</span></p>
 
             <div class="info-box">
-                ℹ️ 회색 글씨는 기본 예시입니다.<br>
-                ℹ️ 저장된 회원님의 정보입니다. 변경사항이 있다면 수정해주세요. (결과 확인 시 자동 업데이트)
-            </div>
-
-            <div class="grid-2">
-                <div><label>나이</label><input type="number" id="age" value="25"></div>
-                <div><label>수면 시간 (시간)</label><input type="number" id="sleep" value="7.0"></div>
-                <div><label>물 섭취량 (ml)</label><input type="number" id="water" value="1500"></div>
-                <div><label>세안 횟수 (일)</label><input type="number" id="washFreq" value="2"></div>
+                <div>
+                    ℹ️ 회색 글씨는 기본 예시입니다.<br>
+                    ℹ️ 저장된 회원님의 정보입니다. 변경사항이 있다면 수정해주세요. (결과 확인 시 자동 업데이트)
+                </div>
             </div>
 
             <div class="grid-2">
                 <div>
-                    <label>민감성 여부</label>
-                    <select id="sensitivity">
-                        <option value="no">아니오</option>
-                        <option value="yes">예</option>
-                    </select>
+                    <label>나이</label>
+                    <input type="number" id="age" class="default-value" value="25" oninput="activateInput(this)">
                 </div>
                 <div>
-                    <label>선호 제형</label>
-                    <select id="texture">
-                        <option value="gel">젤</option>
-                        <option value="cream">크림</option>
-                        <option value="lotion">로션</option>
-                    </select>
+                    <label>수면 시간 (시간)</label>
+                    <input type="number" id="sleep" class="default-value" value="7.0" oninput="activateInput(this)">
                 </div>
+                <div>
+                    <label>물 섭취량 (ml)</label>
+                    <input type="number" id="water" class="default-value" value="1500" oninput="activateInput(this)">
+                </div>
+                <div>
+                    <label>세안 횟수 (일)</label>
+                    <input type="number" id="washFreq" class="default-value" value="2" oninput="activateInput(this)">
+                </div>
+            </div>
+
+            <div class="grid-2">
                 <div>
                     <label>세안 온도</label>
-                    <select id="washTemp">
+                    <select id="washTemp" class="default-value" onchange="activateInput(this)">
                         <option value="cold">차가운 물</option>
                         <option value="warm" selected>미온수 (권장)</option>
                         <option value="hot">뜨거운 물</option>
                     </select>
                 </div>
+                <div>
+                    <label>민감성 여부</label>
+                    <select id="sensitivity" class="default-value" onchange="activateInput(this)">
+                        <option value="no" selected>아니오</option>
+                        <option value="yes">예</option>
+                    </select>
+                </div>
             </div>
 
+             <div style="margin-top: 16px;">
+                <label>선호 제형</label>
+                <select id="texture" class="default-value" onchange="activateInput(this)">
+                    <option value="gel" selected>젤 타입</option>
+                    <option value="cream">크림 타입</option>
+                    <option value="lotion">로션 타입</option>
+                </select>
+            </div>
+
+            <br>
             <button class="btn-success" onclick="reqRecommend()">최종 처방 받기 (저장 및 분석)</button>
 
             <div id="result2Area" class="hidden" style="margin-top:20px;">
@@ -345,7 +355,6 @@
             </div>
         </div>
 
-        <!-- History Section -->
         <div class="card">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
                 <h3 style="margin:0;">📅 피부 분석 기록</h3>
@@ -373,7 +382,6 @@
 
         <div class="card" style="border: 1px solid #cbd5e1; background-color: #f8fafc;">
             <h3>🛠 관리자 메뉴 (데이터 업데이트)</h3>
-            <p style="color:var(--text-light); font-size:0.9em;">새로운 화장품 데이터를 크롤링하여 DB를 갱신합니다.</p>
             <div class="grid-2">
                 <div>
                     <label>관리자 키</label>
@@ -386,7 +394,6 @@
         </div>
     </div>
 
-    <!-- Detail Modal -->
     <div id="detailModal" class="modal hidden" onclick="closeModal(event)">
         <div class="modal-content">
             <span class="close-btn" onclick="closeModal(event)">&times;</span>
@@ -465,58 +472,15 @@
                     document.getElementById('statusText').innerHTML = `👤 <b>${currentUser.name}</b>님`;
                     document.getElementById('currentUserId').value = currentUser.user_id;
 
+                    // 로그인 성공 시 DB 프로필 로드 및 기록 불러오기
                     await loadUserProfile(currentUser.user_id);
-
                     reqHistory();
                 } else {
                     alert(data.detail);
                 }
             } catch (e) { alert("서버 오류: " + e); }
         }
-        // [신규] 입력창 활성화 함수 (사용자가 건드리면 검은색으로 변경)
-        function activateInput(el) {
-            el.classList.remove('default-value');
-        }
-        // [수정] 사용자 프로필 불러오기 함수
-        async function loadUserProfile(userId) {
-            try {
-                const res = await fetch(`/user/profile/${userId}`);
-                const data = await res.json();
 
-                // 데이터가 있으면 값을 채우고 'default-value' 클래스 제거 (검은색)
-                // 데이터가 없으면(빈 객체) 기본값 유지하고 'default-value' 클래스 유지 (회색)
-                if (data && Object.keys(data).length > 0) {
-                    setInputValue('age', data.age);
-                    setInputValue('sleep', data.sleep_hours_7d);
-                    setInputValue('water', data.water_intake_ml);
-                    setInputValue('washFreq', data.wash_freq_per_day);
-                    setInputValue('washTemp', data.wash_temp);
-                    setInputValue('sensitivity', data.sensitivity);
-                    setInputValue('texture', data.pref_texture);
-                } else {
-                    // 데이터가 없는 신규 유저라면 모든 필드에 회색 스타일 적용
-                    resetToDefaultStyle();
-                }
-            } catch (e) {
-                console.error("프로필 로드 실패:", e);
-            }
-        }
-        // 값 설정 및 스타일 처리 헬퍼 함수
-        function setInputValue(id, val) {
-            const el = document.getElementById(id);
-            if (val !== undefined && val !== null) {
-                el.value = val;
-                el.classList.remove('default-value'); // DB에 값이 있으면 검은색
-            }
-        }
-
-        // 초기화 헬퍼 함수 (신규 유저용)
-        function resetToDefaultStyle() {
-            const ids = ['age', 'sleep', 'water', 'washFreq', 'washTemp', 'sensitivity', 'texture'];
-            ids.forEach(id => {
-                document.getElementById(id).classList.add('default-value');
-            });
-        }
         // 회원가입 요청
         async function reqSignup() {
             const id = document.getElementById('signId').value;
@@ -545,6 +509,50 @@
             location.reload();
         }
 
+        // [신규] 입력창 활성화 (회색 -> 검은색)
+        function activateInput(el) {
+            el.classList.remove('default-value');
+        }
+
+        // [신규] 사용자 프로필 불러오기 및 스타일 적용
+        async function loadUserProfile(userId) {
+            try {
+                const res = await fetch(`/user/profile/${userId}`);
+                const data = await res.json();
+
+                // 데이터가 있으면 값을 채우고 검은색으로(활성화)
+                if (data && Object.keys(data).length > 0) {
+                    setInputValue('age', data.age);
+                    setInputValue('sleep', data.sleep_hours_7d);
+                    setInputValue('water', data.water_intake_ml);
+                    setInputValue('washFreq', data.wash_freq_per_day);
+                    setInputValue('washTemp', data.wash_temp);
+                    setInputValue('sensitivity', data.sensitivity);
+                    setInputValue('texture', data.pref_texture);
+                } else {
+                    // 신규 유저라면 회색(기본값 스타일) 적용
+                    resetToDefaultStyle();
+                }
+            } catch (e) {
+                console.error("프로필 로드 실패:", e);
+            }
+        }
+
+        function setInputValue(id, val) {
+            const el = document.getElementById(id);
+            if (val !== undefined && val !== null) {
+                el.value = val;
+                el.classList.remove('default-value');
+            }
+        }
+
+        function resetToDefaultStyle() {
+            const ids = ['age', 'sleep', 'water', 'washFreq', 'washTemp', 'sensitivity', 'texture'];
+            ids.forEach(id => {
+                document.getElementById(id).classList.add('default-value');
+            });
+        }
+
         // 분석 요청
         async function reqAnalyze() {
             const fileInput = document.getElementById('imageFile');
@@ -562,6 +570,10 @@
                 if (!res.ok) throw new Error(data.detail);
 
                 document.getElementById('result1Area').classList.remove('hidden');
+
+                // [NEW] 종합 점수 표시
+                document.getElementById('displayScore').innerText = data.total_score || 0;
+
                 document.getElementById('result1').innerText = JSON.stringify(data, null, 2);
 
                 if (data.analysis_id) {
@@ -573,11 +585,10 @@
             } catch (err) { alert(err); }
         }
 
-        // 하드웨어 측정 요청 함수
+        // 하드웨어 측정 요청
         async function reqHardwareAnalyze() {
             if (!currentUser) return alert("로그인이 필요합니다.");
 
-            // 버튼 로딩 표시
             const btn = event.target;
             const originalText = btn.innerText;
             btn.innerText = "⏳ 측정 및 분석 중...";
@@ -587,7 +598,6 @@
                 const formData = new FormData();
                 formData.append("user_id", currentUser.user_id);
 
-                // 서버에 하드웨어 측정 요청 (/analyze-hardware)
                 const res = await fetch('/analyze-hardware', {
                     method: 'POST',
                     body: formData
@@ -596,18 +606,19 @@
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.detail);
 
-                // 1. 분석 결과창 띄우기
                 document.getElementById('result1Area').classList.remove('hidden');
+
+                // [NEW] 종합 점수 표시 (하드웨어 모드)
+                document.getElementById('displayScore').innerText = data.total_score || 0;
+
                 document.getElementById('result1').innerText = JSON.stringify(data, null, 2);
 
-                // 2. 센서값(수분/유분)이 있으면 입력칸에 자동으로 채워주기
                 if(data.sensor_data) {
                     document.getElementById('moisture').value = data.sensor_data.moisture;
                     document.getElementById('sebum').value = data.sensor_data.sebum;
                     alert(`측정 완료!\n수분: ${data.sensor_data.moisture}, 유분: ${data.sensor_data.sebum}`);
                 }
 
-                // 3. 다음 단계(처방)로 넘어가기 위한 ID 저장
                 if (data.analysis_id) {
                     currentAnalysisId = data.analysis_id;
                     document.getElementById('savedAnalysisId').innerText = currentAnalysisId;
@@ -618,7 +629,6 @@
             } catch (err) {
                 alert("하드웨어 분석 실패: " + err);
             } finally {
-                // 버튼 원상복구
                 btn.innerText = originalText;
                 btn.disabled = false;
             }
@@ -652,12 +662,13 @@
                 });
                 const data = await res.json();
 
-                if (!res.ok) throw new Error(data.detail);
+                if (!res.ok) {
+                    alert("오류: " + data.detail);
+                    return;
+                }
 
                 document.getElementById('result2Area').classList.remove('hidden');
                 document.getElementById('result2').innerText = JSON.stringify(data, null, 2);
-
-                alert("✅ 처방 완료 & 정보가 저장되었습니다.");
 
                 reqHistory();
             } catch (err) { alert(err); }
@@ -676,11 +687,10 @@
 
                 if (historyData.length === 0) {
                     tbody.innerHTML = "<tr><td colspan='3'>기록이 없습니다.</td></tr>";
-                    document.getElementById('historyArea').classList.remove('hidden'); // 빈 기록이라도 영역은 보여줌
+                    document.getElementById('historyArea').classList.remove('hidden');
                     return;
                 }
 
-                // 테이블 렌더링
                 historyData.forEach((item, index) => {
                     tbody.innerHTML += `<tr>
                         <td>${item.date.split(' ')[0]}</td>
@@ -698,8 +708,6 @@
         // 차트 렌더링
         function renderChart(data) {
             const ctx = document.getElementById('historyChart').getContext('2d');
-
-            // 날짜 오름차순 정렬
             const sortedData = [...data].sort((a, b) => new Date(a.date) - new Date(b.date));
 
             const labels = sortedData.map(d => d.date.split(' ')[0]);
@@ -784,12 +792,11 @@
             }
         }
 
-        // [추가됨] 관리자 제품 업데이트 요청
+        // 관리자 제품 업데이트 요청
         async function reqUpdateProducts() {
             const secretKey = document.getElementById('adminKey').value;
             if (!secretKey) return alert("관리자 키를 입력해주세요.");
 
-            // main.py가 Form 데이터(secret_key)를 요구하므로 FormData 사용
             const formData = new FormData();
             formData.append("secret_key", secretKey);
 
@@ -808,7 +815,7 @@
                 if (res.ok) {
                     alert("✅ 성공: " + data.message + "\n(백그라운드에서 작업이 진행됩니다.)");
                 } else {
-                    alert("❌ 실패: " + data.detail); // 키가 틀리면 여기서 걸러짐
+                    alert("❌ 실패: " + data.detail);
                 }
             } catch (e) {
                 alert("서버 통신 오류: " + e);
@@ -819,5 +826,4 @@
         }
     </script>
 </body>
-
 </html>

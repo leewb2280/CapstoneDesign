@@ -266,6 +266,7 @@ async def analyze_skin_endpoint(
         return {
             "message": "Analysis successful",
             "analysis_id": result["analysis_id"],
+            "total_score": result["total_score"],
             "gpt_result": result["gpt_result"]
         }
 
@@ -287,6 +288,7 @@ async def analyze_hardware_endpoint(user_id: str = Form(...)):
         return {
             "message": "Hardware Analysis successful",
             "analysis_id": result["analysis_id"],
+            "total_score": result["total_score"],
             "gpt_result": result["gpt_result"],
             "sensor_data": {"moisture": moist, "sebum": seb}
         }

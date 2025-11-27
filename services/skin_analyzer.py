@@ -28,7 +28,7 @@ load_dotenv()
 # 1. 데이터베이스 저장 (DB Handling)
 # ==============================================================================
 
-def save_analysis_to_db(user_id: str, gpt_result: dict, manual_input: dict, image_path: str) -> int:
+def save_analysis_to_db(user_id: str, gpt_result: dict, manual_input: dict, total_score: int, image_path: str) -> int:
     """
     분석 결과와 사용자 입력값(유수분), 그리고 이미지 경로를 PostgreSQL DB에 저장합니다.
 
@@ -57,26 +57,31 @@ def save_analysis_to_db(user_id: str, gpt_result: dict, manual_input: dict, imag
                 redness INTEGER,
                 moisture INTEGER,
                 sebum INTEGER,
+                total_score INTEGER,
                 image_path TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         """)
 
-        # 2. 스키마 마이그레이션 (기존 테이블에 image_path 컬럼이 없는 경우 추가)
-        try:
-            cursor.execute("ALTER TABLE analysis_log ADD COLUMN image_path TEXT;")
-            conn.commit()
-        except psycopg2.errors.DuplicateColumn:
-            conn.rollback()  # 이미 컬럼이 있으면 무시하고 롤백
-        except Exception as e:
-            conn.rollback()
-            logger.warning(f"⚠️ 컬럼 추가 중 오류 (무시 가능): {e}")
+        # 2. 스키마 마이그레이션 (컬럼이 없을 경우 추가)
+        # 기존 테이블에 image_path나 total_score가 없을 수 있으므로 체크
+        for col in ["image_path", "total_score"]:
+            try:
+                # 컬럼 추가 시도 (INTEGER type for score, TEXT for path)
+                col_type = "INTEGER" if col == "total_score" else "TEXT"
+                cursor.execute(f"ALTER TABLE analysis_log ADD COLUMN {col} {col_type};")
+                conn.commit()
+            except psycopg2.errors.DuplicateColumn:
+                conn.rollback()  # 이미 있으면 무시
+            except Exception as e:
+                conn.rollback()
+                logger.warning(f"⚠️ 컬럼({col}) 추가 중 오류 (무시 가능): {e}")
 
         # 3. 데이터 삽입
         query = """
             INSERT INTO analysis_log 
-            (user_id, acne, wrinkles, pores, pigmentation, redness, moisture, sebum, image_path)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            (user_id, acne, wrinkles, pores, pigmentation, redness, moisture, sebum, total_score, image_path)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id;
         """
 
@@ -90,6 +95,7 @@ def save_analysis_to_db(user_id: str, gpt_result: dict, manual_input: dict, imag
             gpt_result.get("redness", 0),
             manual_input.get("moisture", 50),
             manual_input.get("sebum", 50),
+            total_score,
             image_path
         )
 
@@ -136,20 +142,34 @@ def perform_skin_analysis(user_id: str, image_path: str, moisture: int, sebum: i
     logger.info("🚀 AI(GPT) 분석 수행 중...")
     gpt_result = analyze_skin_image(image_path)
 
-    # [안전장치] GPT 분석 실패 시 처리
     if not gpt_result:
         logger.warning("❌ GPT 분석 실패 (API 오류 또는 응답 없음)")
-        # 필요하다면 여기서 '비상용 더미 데이터'를 반환하도록 수정 가능
-        # gpt_result = {"acne": 50, "wrinkles": 50, ...}
         return None
 
     logger.info(f"📊 AI 분석 완료: {gpt_result}")
 
-    # 3. 데이터 패키징
+    # [신규] 3. 종합 점수 계산 (Total Score)
+    # GPT 점수는 100점일수록 나쁨 -> 따라서 평균을 내서 100에서 뺌 (높을수록 좋음)
+    try:
+        metrics = [
+            gpt_result.get("acne", 0),
+            gpt_result.get("wrinkles", 0),
+            gpt_result.get("pores", 0),
+            gpt_result.get("pigmentation", 0),
+            gpt_result.get("redness", 0)
+        ]
+        avg_badness = sum(metrics) / len(metrics)
+        total_score = int(100 - avg_badness)  # 100점 만점 기준
+        total_score = max(0, min(100, total_score))  # 0~100 사이로 보정
+    except Exception as e:
+        logger.error(f"점수 계산 오류: {e}")
+        total_score = 50  # 오류 시 기본값
+
+    # 4. 데이터 패키징
     manual_input = {"moisture": moisture, "sebum": sebum}
 
-    # 4. DB 저장
-    analysis_id = save_analysis_to_db(user_id, gpt_result, manual_input, image_path)
+    # 5. DB 저장
+    analysis_id = save_analysis_to_db(user_id, gpt_result, manual_input, total_score, image_path)
 
     if not analysis_id:
         logger.error("⚠️ DB 저장이 실패했지만 분석 결과는 반환합니다.")
@@ -157,6 +177,7 @@ def perform_skin_analysis(user_id: str, image_path: str, moisture: int, sebum: i
     # 5. 최종 결과 반환
     return {
         "analysis_id": analysis_id,
+        "total_score": total_score,
         "gpt_result": gpt_result,
         "manual_input": manual_input
     }
