@@ -33,7 +33,10 @@ logger = logging.getLogger(__name__)
 
 def get_current_weather(api_key: str = None) -> dict:
     """
-    OpenWeatherMap API를 통해 현재 날씨 정보를 가져옵니다.
+    날씨 정보를 가져옵니다. (이중화 로직 적용)
+    1순위: OpenWeatherMap (API Key 필요, 정확도 높음)
+    2순위: Open-Meteo (API Key 불필요, 백업용)
+    3순위: 기본값 (모두 실패 시)
 
     Args:
         api_key (str): OWM API Key
@@ -41,11 +44,10 @@ def get_current_weather(api_key: str = None) -> dict:
     Returns:
         dict: {'uv': float, 'humidity': int, 'temperature': float, 'source': str}
     """
-    # 위치 설정 (예시: 광주광역시 좌표)
-    # 실서비스 시에는 GPS 좌표를 앱에서 받아오도록 수정 가능
+    # 위치 설정 (광주광역시 좌표)
     lat, lon = 35.15944, 126.85250
 
-    # 기본값 (API 키가 없거나 호출 실패 시 사용)
+    # 3순위: 최후의 보루 (기본값)
     fallback_env = {
         "uv": 5.0,
         "humidity": 45,
@@ -53,26 +55,51 @@ def get_current_weather(api_key: str = None) -> dict:
         "source": "fallback"
     }
 
-    if not api_key:
-        return fallback_env
+    # ---------------------------------------------------------
+    # 1순위: OpenWeatherMap
+    # ---------------------------------------------------------
+    if api_key:
+        try:
+            url = f"https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&units=metric&appid={api_key}"
+            with urllib.request.urlopen(url, timeout=3) as res:
+                data = json.load(res)
 
+                # OWM은 무료 버전에서 UV를 제공하지 않는 경우가 많아 기본값 5.0 사용
+                return {
+                    "temperature": float(data["main"]["temp"]),
+                    "humidity": int(data["main"]["humidity"]),
+                    "uv": 5.0,
+                    "source": "api(OpenWeatherMap)"
+                }
+        except Exception as e:
+            logger.warning(f"⚠️ OpenWeatherMap 호출 실패 ({e}), 백업 API를 시도합니다.")
+
+    # ---------------------------------------------------------
+    # 2순위: Open-Meteo
+    # ---------------------------------------------------------
     try:
-        url = f"https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&units=metric&appid={api_key}"
+        # Open-Meteo는 키가 필요 없고 UV, 습도, 기온을 한 번에 줍니다.
+        url = (
+            f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}"
+            f"&current=temperature_2m,relative_humidity_2m,uv_index"
+        )
 
         with urllib.request.urlopen(url, timeout=3) as res:
             data = json.load(res)
+            current = data.get("current", {})
 
             return {
-                "temperature": float(data["main"]["temp"]),
-                "humidity": int(data["main"]["humidity"]),
-                "uv": 5.0,  # 무료 API는 UV를 안 주는 경우가 많아 고정값 사용
-                "source": "api(weather)"
+                "temperature": float(current.get("temperature_2m", 24.0)),
+                "humidity": int(current.get("relative_humidity_2m", 45)),
+                "uv": float(current.get("uv_index", 5.0)),
+                "source": "api(Open-Meteo)"
             }
 
     except Exception as e:
-        logger.warning(f"날씨 API 호출 실패 ({e}), 기본값을 사용합니다.")
-        return fallback_env
+        logger.error(f"❌ Open-Meteo 호출 실패 ({e}), 기본값을 사용합니다.")
 
+    # 모든 API 실패 시 기본값 반환
+    return fallback_env
 
 # ==============================================================================
 # 2. 머신러닝 (Machine Learning)
@@ -81,15 +108,12 @@ def get_current_weather(api_key: str = None) -> dict:
 def predict_trouble_proba(payload: dict) -> dict:
     """
     학습된 모델(.pkl)을 사용하여 피부 트러블 발생 확률을 예측합니다.
-
-    Args:
-        payload (dict): camera, env, lifestyle 데이터가 포함된 딕셔너리
-
-    Returns:
-        dict: {'prob': float, 'msg': str}
+    * 팀원 코드(final_skin.py)의 Temperature Scaling(T=1.8) 로직을 이식하여
+      과도한 확신(Overconfidence)을 보정했습니다.
     """
     if not os.path.exists(MODEL_PATH):
-        return {"prob": None, "msg": "AI 모델 파일이 없습니다."}
+        # 모델이 없을 때는 안전하게 0% 처리
+        return {"prob": 0.0, "msg": "AI 모델 파일이 없어 예측을 건너뜁니다."}
 
     try:
         model = joblib.load(MODEL_PATH)
@@ -99,7 +123,8 @@ def predict_trouble_proba(payload: dict) -> dict:
         env = payload["env"]
         life = payload["lifestyle"]
 
-        # 2. Feature Vector 생성 (학습 순서 중요: Skin -> Env -> Life)
+        # 2. Feature Vector 생성 (학습 순서: Skin -> Env -> Life)
+
         # (1) 피부 데이터
         f_skin = [
             float(cam.get("redness", 0)),
@@ -130,18 +155,39 @@ def predict_trouble_proba(payload: dict) -> dict:
         # 3. 최종 입력 배열 생성 (2D Array)
         features = np.array([f_skin + f_env + f_life])
 
-        # 4. 예측 실행
-        # [중요] 모델 클래스 0번이 '트러블 발생' 확률임
-        prob = model.predict_proba(features)[0, 0]
+        # 4. 예측 실행 및 보정 (Temperature Scaling)
+        # (1) Raw Probability 추출 (Class 1이 트러블 발생일 확률)
+        prob_raw = model.predict_proba(features)[0, 1]
+
+        # (2) 수치 안정성 처리 (log(0) 방지)
+        prob_safe = np.clip(prob_raw, 1e-4, 1 - 1e-4)
+
+        # (3) 온도 보정 적용 (T=1.8)
+        T = 1.8
+        logit = np.log(prob_safe / (1.0 - prob_safe))
+        logit_T = logit / T
+        final_prob = 1.0 / (1.0 + np.exp(-logit_T))
+
+        # 5. 결과 메시지 생성
+        final_prob = float(final_prob)  # numpy float -> native float
+        percent = int(final_prob * 100)
+
+        if final_prob < 0.3:
+            msg = f"트러블 위험 낮음 ({percent}%) - 현재 상태 유지"
+        elif final_prob < 0.6:
+            msg = f"트러블 위험 보통 ({percent}%) - 수분/진정 관리 권장"
+        else:
+            msg = f"트러블 위험 높음 ({percent}%) - 자극을 줄이는 루틴 필요"
 
         return {
-            "prob": round(prob, 2),
-            "msg": f"트러블 발생 확률: {int(prob * 100)}%"
+            "prob": round(final_prob, 2),
+            "msg": msg
         }
 
     except Exception as e:
         logger.error(f"ML 예측 오류: {e}")
-        return {"prob": None, "msg": f"예측 중 오류 발생: {str(e)}"}
+        # 에러 발생 시 멈추지 않고 확률 없음으로 반환
+        return {"prob": 0.0, "msg": "예측 중 오류가 발생했습니다."}
 
 
 # ==============================================================================
@@ -459,60 +505,6 @@ def authenticate_user_db(user_id, password):
         return None
 
 
-def get_user_history_db(user_id):
-    """
-    특정 사용자의 과거 기록을 조회합니다.
-    recommendation_log와 analysis_log를 JOIN하여 풍부한 데이터를 가져옵니다.
-    """
-    try:
-        conn = psycopg2.connect(**DB_CONFIG)
-        cursor = conn.cursor()
-
-        # JOIN 쿼리: 추천 기록 + 분석 기록(이미지, 점수 등)
-        query = """
-            SELECT 
-                r.id, r.skin_age, r.top3_products, r.created_at,
-                a.image_path, a.acne, a.wrinkles, a.pores, a.pigmentation, a.redness, a.moisture, a.sebum
-            FROM recommendation_log r
-            LEFT JOIN analysis_log a ON r.analysis_id = a.id
-            WHERE r.user_id = %s 
-            ORDER BY r.id DESC
-        """
-        cursor.execute(query, (user_id,))
-        rows = cursor.fetchall()
-
-        cursor.close()
-        conn.close()
-
-        history = []
-        for r in rows:
-            # r[0]: record_id, r[1]: skin_age, r[2]: top3_json, r[3]: date
-            # r[4]: img_path, r[5]~r[11]: scores
-
-            top3 = json.loads(r[2]) if r[2] else []
-
-            # 이미지 경로가 없거나 파일이 없으면 기본 이미지 처리 (프론트에서 처리하도록 None 보냄)
-            img_path = r[4] if r[4] else None
-
-            history.append({
-                "record_id": r[0],
-                "skin_age": r[1],
-                "top3_names": [p['name'] for p in top3],
-                "date": str(r[3]),
-                "image_path": img_path,
-                "scores": {
-                    "acne": r[5], "wrinkles": r[6], "pores": r[7],
-                    "pigmentation": r[8], "redness": r[9],
-                    "moisture": r[10], "sebum": r[11]
-                }
-            })
-
-        return history
-    except Exception as e:
-        logger.error(f"기록 조회 실패: {e}")
-        return []
-
-
 def check_user_exists_db(user_id):
     """아이디가 DB에 진짜 존재하는지 확인"""
     try:
@@ -530,8 +522,8 @@ def check_user_exists_db(user_id):
 def search_skin_history_db(
         user_id: str,
         condition: str = None,
-        start_date: str = None,  # [New] 검색 시작일 (YYYY-MM-DD)
-        end_date: str = None,  # [New] 검색 종료일 (YYYY-MM-DD)
+        start_date: str = None,
+        end_date: str = None,
         page: int = 1,
         page_size: int = 50
 ):
@@ -540,10 +532,14 @@ def search_skin_history_db(
         cursor = conn.cursor()
 
         # 1. 기본 쿼리
-        base_query = "FROM analysis_log WHERE user_id = %s"
+        base_query = """
+                    FROM analysis_log a
+                    LEFT JOIN recommendation_log r ON a.id = r.analysis_id
+                    WHERE a.user_id = %s
+                """
         params = [user_id]
 
-        # 2. [기존] 상태 조건 필터 적용
+        # 2. 상태 조건 필터 적용
         if condition:
             filter_result = get_filter_query(condition)
             if filter_result:
@@ -552,18 +548,14 @@ def search_skin_history_db(
                 if val is not None:
                     params.append(val)
 
-        # 3. [신규] 날짜 기간 필터 적용
-        # 사용자가 날짜를 입력했다면 WHERE 절에 추가
+        # 3. 날짜 기간 필터 적용
         if start_date:
-            base_query += " AND created_at >= %s"
-            params.append(start_date)  # 예: '2025-11-01'
+            base_query += " AND a.created_at >= %s"
+            params.append(start_date)
 
         if end_date:
-            # 해당 날짜의 23시 59분까지 포함하기 위해 날짜 처리가 필요할 수 있지만
-            # 여기서는 편의상 입력된 날짜(00시 00분) 기준으로 처리하거나
-            # 프론트에서 시간을 붙여서 보내는 것을 가정합니다.
-            base_query += " AND created_at <= %s"
-            params.append(end_date + " 23:59:59")  # 그 날짜의 마지막 시간까지 포함
+            base_query += " AND a.created_at <= %s"
+            params.append(end_date + " 23:59:59")
 
         # 4. 개수 세기 (Pagination용)
         count_sql = f"SELECT COUNT(*) {base_query}"
@@ -573,11 +565,15 @@ def search_skin_history_db(
         # 5. 데이터 조회
         offset = (page - 1) * page_size
         data_sql = f"""
-            SELECT id, created_at, moisture, sebum, redness, pores, wrinkles, acne
-            {base_query}
-            ORDER BY created_at DESC
-            LIMIT %s OFFSET %s
-        """
+                    SELECT 
+                        a.id, a.created_at, 
+                        a.moisture, a.sebum, a.redness, a.pores, a.wrinkles, a.acne,
+                        a.image_path, 
+                        r.skin_age
+                    {base_query}
+                    ORDER BY a.created_at DESC
+                    LIMIT %s OFFSET %s
+                """
         full_params = params + [page_size, offset]
 
         cursor.execute(data_sql, tuple(full_params))
@@ -588,9 +584,14 @@ def search_skin_history_db(
 
         records = []
         for r in rows:
+            # DB에서 가져온 순서대로 매핑 (인덱스 주의)
+            # 0:id, 1:date, 2~7:scores, 8:image, 9:age
+
             records.append({
                 "id": r[0],
                 "date": r[1].strftime("%Y-%m-%d %H:%M"),
+                "image_path": r[8],
+                "skin_age": r[9] if r[9] else 0,
                 "scores": {
                     "moisture": r[2], "sebum": r[3],
                     "redness": r[4], "pore": r[5],
@@ -677,3 +678,178 @@ def get_skin_period_stats_db(user_id: str, start_date: str, end_date: str):
     except Exception as e:
         logger.error(f"통계 계산 실패: {e}")
         return None
+
+
+def save_analysis_log_db(user_id, file_path, scores):
+    """
+    [DB 저장 전담] 분석 결과와 이미지 경로를 DB에 저장하고 ID를 반환합니다.
+    """
+    try:
+        conn = psycopg2.connect(**DB_CONFIG)
+        cursor = conn.cursor()
+
+        insert_sql = """
+            INSERT INTO analysis_log 
+            (user_id, image_path, moisture, sebum, redness, pores, wrinkles, acne, pigmentation)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id;
+        """
+        # 딕셔너리에서 값 추출
+        params = (
+            user_id, file_path,
+            scores['moisture'], scores['sebum'], scores['redness'],
+            scores['pores'], scores['wrinkles'], scores['acne'], scores.get('pigmentation', 0)
+        )
+
+        cursor.execute(insert_sql, params)
+        new_id = cursor.fetchone()[0]
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return new_id
+
+    except Exception as e:
+        logger.error(f"DB 저장 실패: {e}")
+        return None
+
+
+# ==============================================================================
+# 5. AI 모델 학습 (Training)
+# ==============================================================================
+
+def save_training_log_db(user_id: str, payload: dict):
+    """
+    [데이터 수집] AI 학습을 위해 모든 환경/피부/생활 변수를 DB에 기록합니다.
+    (final_skin.py의 log_today 역할)
+    """
+    try:
+        conn = psycopg2.connect(**DB_CONFIG)
+        cursor = conn.cursor()
+
+        # 1. 학습 전용 테이블이 없으면 생성
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS training_log (
+                id SERIAL PRIMARY KEY,
+                user_id VARCHAR(50),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                redness REAL, sebum REAL, moisture REAL, acne REAL, -- 피부
+                uv REAL, humidity REAL, temperature REAL,           -- 환경
+                sleep_hours REAL, water_intake INTEGER,             -- 생활1
+                wash_freq REAL, is_hot_wash INTEGER, is_sensitive INTEGER -- 생활2
+            );
+        """)
+
+        # 2. 데이터 추출
+        cam = payload["camera"]
+        env = payload["env"]
+        life = payload["lifestyle"]
+
+        # Hot 세안 여부, 민감성 여부는 0/1 숫자로 변환
+        is_hot = 1 if str(life.get("wash_temp", "")).lower() == "hot" else 0
+        is_sens = 1 if str(life.get("sensitivity", "")).lower() == "yes" else 0
+
+        # 3. 데이터 삽입
+        insert_sql = """
+            INSERT INTO training_log 
+            (user_id, redness, sebum, moisture, acne, uv, humidity, temperature, 
+             sleep_hours, water_intake, wash_freq, is_hot_wash, is_sensitive)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """
+        cursor.execute(insert_sql, (
+            user_id,
+            float(cam.get("redness", 0)), float(cam.get("sebum", 0)),
+            float(cam.get("moisture", 0)), float(cam.get("acne", 0)),
+            float(env.get("uv", 0)), float(env.get("humidity", 0)), float(env.get("temperature", 0)),
+            float(life.get("sleep_hours_7d", 7)), int(life.get("water_intake_ml", 1500)),
+            float(life.get("wash_freq_per_day", 2)), is_hot, is_sens
+        ))
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+        logger.info(f"📝 [Training] 학습 데이터 기록 완료 (User: {user_id})")
+
+    except Exception as e:
+        logger.error(f"⚠️ 학습 데이터 저장 실패: {e}")
+
+
+def train_model_from_db():
+    """
+    [모델 재학습] DB에 쌓인 데이터를 읽어와 AI 모델을 업데이트합니다.
+    (final_skin.py의 train_trouble_model 역할)
+    """
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.preprocessing import StandardScaler
+    from sklearn.pipeline import Pipeline
+    import pandas as pd
+
+    logger.info("🎓 [Training] 모델 재학습 프로세스 시작...")
+
+    try:
+        conn = psycopg2.connect(**DB_CONFIG)
+
+        # 1. DB에서 모든 로그 가져오기 (시간순 정렬)
+        query = "SELECT * FROM training_log ORDER BY user_id, created_at ASC"
+        df = pd.read_sql(query, conn)
+        conn.close()
+
+        if len(df) < 50:
+            logger.warning(f"데이터 부족({len(df)}개). 최소 50개 이상 쌓이면 학습하세요.")
+            return {"status": "skipped", "msg": "데이터 부족"}
+
+        # 2. 라벨링 (Labeling): 2일 뒤 홍조가 악화되었는가?
+        # final_skin.py의 로직(build_trouble_dataset)을 Pandas로 구현
+        X = []
+        y = []
+
+        # 사용자별로 그룹화해서 미래 데이터 비교
+        grouped = df.groupby("user_id")
+
+        horizon_days = 2  # 2일 뒤 예측
+
+        for user, group in grouped:
+            # 날짜 인덱스 설정
+            group = group.sort_values("created_at")
+            vals = group.to_dict("records")
+
+            for i in range(len(vals) - horizon_days):
+                curr = vals[i]
+                future = vals[i + horizon_days]
+
+                # 피처 벡터 (입력)
+                features = [
+                    curr["redness"], curr["sebum"], curr["moisture"], curr["acne"],
+                    curr["uv"], curr["humidity"], curr["temperature"],
+                    curr["sleep_hours"], curr["water_intake"], curr["wash_freq"],
+                    curr["is_hot_wash"], curr["is_sensitive"]
+                ]
+
+                # 라벨 (정답): 미래 홍조가 60 이상이고, 현재보다 8 이상 증가했으면 '악화(1)'
+                red_now = curr["redness"]
+                red_fut = future["redness"]
+
+                is_trouble = 1 if (red_fut >= 60 and (red_fut - red_now) >= 8) else 0
+
+                X.append(features)
+                y.append(is_trouble)
+
+        if len(X) < 10:
+            return {"status": "skipped", "msg": "유효한 학습 샘플(쌍)이 너무 적습니다."}
+
+        # 3. 모델 학습
+        model = Pipeline([
+            ("scaler", StandardScaler()),
+            ("clf", LogisticRegression(max_iter=1000, class_weight="balanced", C=0.5))
+        ])
+
+        model.fit(X, y)
+
+        # 4. 저장
+        joblib.dump(model, MODEL_PATH)
+        logger.info(f"✅ 모델 업데이트 완료! (샘플 수: {len(X)})")
+        return {"status": "success", "sample_count": len(X)}
+
+    except Exception as e:
+        logger.error(f"❌ 학습 중 오류 발생: {e}")
+        return {"status": "error", "msg": str(e)}

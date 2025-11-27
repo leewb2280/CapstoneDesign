@@ -7,7 +7,6 @@ API 서버의 요청을 받아, 수집된 데이터를 종합하여
 
 import logging
 import datetime
-import json
 import numpy as np
 
 # 설정 및 유틸리티
@@ -18,7 +17,7 @@ from core.utils import (
     predict_trouble_proba,
     get_skin_data_by_id,
     save_recommendation_to_db,
-    get_user_profile_db
+    save_training_log_db
 )
 # 분석 로직 엔진
 from .skin_advisor_logic import SkinCareAdvisor
@@ -59,16 +58,7 @@ def convert_numpy_to_native(obj):
 
 def run_skin_advisor(user_id: str, analysis_id: int, lifestyle: dict, user_pref: dict) -> dict:
     """
-    [핵심 로직] 사용자 정보와 분석 데이터를 결합하여 최종 처방을 내립니다.
-
-    Args:
-        user_id (str): 사용자 ID
-        analysis_id (int): 1단계에서 생성된 분석 로그 ID
-        lifestyle (dict): 생활습관 설문 데이터
-        user_pref (dict): 사용자 선호도 데이터
-
-    Returns:
-        dict: 최종 추천 결과 (피부나이, 추천제품, 루틴, 트러블예측)
+    사용자 정보와 분석 데이터를 결합하여 최종 처방을 내립니다.
     """
     logger.info(f"🧠 [Advisor] 심층 분석 시작 (User: {user_id}, AnalysisID: {analysis_id})")
 
@@ -90,7 +80,6 @@ def run_skin_advisor(user_id: str, analysis_id: int, lifestyle: dict, user_pref:
     env_data = get_current_weather(OWM_API_KEY)
 
     # 3. 분석용 Payload 생성
-    # (인자로 받은 lifestyle, user_pref를 그대로 사용합니다)
     payload = {
         "camera": camera_data,
         "env": env_data,
@@ -133,6 +122,8 @@ def run_skin_advisor(user_id: str, analysis_id: int, lifestyle: dict, user_pref:
         trouble_prob=raw_prob
     )
 
+    save_training_log_db(user_id, payload) # AI 학습용 데이터 저장
+
     logger.info(f"✨ [Advisor] 분석 완료 (피부나이: {skin_age}세, 트러블확률: {int(raw_prob * 100)}%)")
 
     return {
@@ -143,38 +134,3 @@ def run_skin_advisor(user_id: str, analysis_id: int, lifestyle: dict, user_pref:
         "trouble_prediction": ml_pred["msg"],
         "trouble_prob": raw_prob
     }
-
-
-# ==============================================================================
-# 3. 테스트 코드 (Local Test)
-# ==============================================================================
-if __name__ == "__main__":
-    print("\n🧪 [테스트 모드] skin_advisor.py 직접 실행")
-
-    # 1. 테스트용 가짜 데이터
-    TEST_USER = "test_advisor_user"
-    TEST_ANALYSIS_ID = 1  # 주의: DB에 실제로 존재하는 ID여야 정확함
-
-    TEST_LIFESTYLE = {
-        "sleep_hours_7d": 6.5,
-        "water_intake_ml": 1200,
-        "wash_freq_per_day": 2,
-        "wash_temp": "hot",
-        "sensitivity": "yes"
-    }
-
-    TEST_PREF = {
-        "age": 24,
-        "pref_texture": "cream"
-    }
-
-    # 2. 실행
-    try:
-        result = run_skin_advisor(TEST_USER, TEST_ANALYSIS_ID, TEST_LIFESTYLE, TEST_PREF)
-
-        # 3. 결과 출력
-        print("\n✅ 최종 결과 JSON:")
-        print(json.dumps(result, indent=2, ensure_ascii=False))
-
-    except Exception as e:
-        print(f"\n💥 오류 발생: {e}")

@@ -1,207 +1,165 @@
 # skin_analyzer.py
 """
-[피부 분석 실행 및 저장 담당]
-API 서버(main.py)의 요청을 받아 실제 AI 분석을 수행하고 로그를 저장하는 모듈입니다.
-
-기능:
-1. GPT Vision API 호출 (피부 이미지 분석)
-2. PostgreSQL DB 저장 (분석 결과 기록)
+[Service Layer] Skin Analysis Logic
+- 하드웨어 센서 (수분/유분)
+- GPT Vision API (피부 상세 분석)
 """
 
-import os
 import logging
-import psycopg2
-from dotenv import load_dotenv
+import uuid
+import shutil
+from fastapi import UploadFile, HTTPException
 
-# 사용자 정의 모듈
+# 1. DB 저장 (Repository)
+from core.utils import save_analysis_log_db
+
+# 2. GPT 분석 (External API)
 from .gpt_api import analyze_skin_image
-from .config import DB_CONFIG
 
 # 로깅 설정
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-load_dotenv()
-
 
 # ==============================================================================
-# 1. 데이터베이스 저장 (DB Handling)
+# 1. 하드웨어 센서 제어 (Hardware Control)
 # ==============================================================================
 
-def save_analysis_to_db(user_id: str, gpt_result: dict, manual_input: dict, total_score: int, image_path: str) -> int:
+def read_hardware_sensors():
     """
-    분석 결과와 사용자 입력값(유수분), 그리고 이미지 경로를 PostgreSQL DB에 저장합니다.
-
-    Args:
-        user_id (str): 사용자 ID
-        gpt_result (dict): GPT 분석 결과
-        manual_input (dict): 유수분 센서 데이터
-        image_path (str): 저장된 이미지 파일 경로
-
-    Returns:
-        int: 저장된 로그의 ID (실패 시 None)
+    [환경 자동 감지]
+    라즈베리파이 센서 라이브러리가 있으면 값을 읽어옵니다.
     """
     try:
-        conn = psycopg2.connect(**DB_CONFIG)
-        cursor = conn.cursor()
+        import spidev
+        import RPi.GPIO as GPIO
 
-        # 1. 테이블 생성 (없을 경우)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS analysis_log (
-                id SERIAL PRIMARY KEY,
-                user_id VARCHAR(50),
-                acne INTEGER,
-                wrinkles INTEGER,
-                pores INTEGER,
-                pigmentation INTEGER,
-                redness INTEGER,
-                moisture INTEGER,
-                sebum INTEGER,
-                total_score INTEGER,
-                image_path TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-        """)
+        # 1. 카메라 촬영 (옵션) - skin_analyzer는 이미지 파일 자체를 인자로 받으므로
+        # 센서값만 읽는 것이 목적이라면 카메라는 제외해도 됩니다.
 
-        # 2. 스키마 마이그레이션 (컬럼이 없을 경우 추가)
-        # 기존 테이블에 image_path나 total_score가 없을 수 있으므로 체크
-        for col in ["image_path", "total_score"]:
-            try:
-                # 컬럼 추가 시도 (INTEGER type for score, TEXT for path)
-                col_type = "INTEGER" if col == "total_score" else "TEXT"
-                cursor.execute(f"ALTER TABLE analysis_log ADD COLUMN {col} {col_type};")
-                conn.commit()
-            except psycopg2.errors.DuplicateColumn:
-                conn.rollback()  # 이미 있으면 무시
-            except Exception as e:
-                conn.rollback()
-                logger.warning(f"⚠️ 컬럼({col}) 추가 중 오류 (무시 가능): {e}")
+        # 2. 센서값 읽기
+        adc = spidev.SpiDev()
+        adc.open(0, 0)
+        adc.max_speed_hz = 1350000
 
-        # 3. 데이터 삽입
-        query = """
-            INSERT INTO analysis_log 
-            (user_id, acne, wrinkles, pores, pigmentation, redness, moisture, sebum, total_score, image_path)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            RETURNING id;
-        """
+        def read_adc(channel):
+            r = adc.xfer2([1, (8 + channel) << 4, 0])
+            data = ((r[1] & 3) << 8) + r[2]
+            return data
 
-        # 데이터 매핑
-        data = (
-            user_id,
-            gpt_result.get("acne", 0),
-            gpt_result.get("wrinkles", 0),
-            gpt_result.get("pores", 0),
-            gpt_result.get("pigmentation", 0),
-            gpt_result.get("redness", 0),
-            manual_input.get("moisture", 50),
-            manual_input.get("sebum", 50),
-            total_score,
-            image_path
-        )
+        raw_moisture = read_adc(0)
+        raw_sebum = read_adc(1)
 
-        cursor.execute(query, data)
-        new_id = cursor.fetchone()[0]
-        conn.commit()
+        # 변환 로직
+        real_moisture = int((raw_moisture / 1023) * 100)
+        real_sebum = int((raw_sebum / 1023) * 100)
 
-        cursor.close()
-        conn.close()
+        return {"moisture": real_moisture, "sebum": real_sebum}
 
-        logger.info(f"✅ [DB] 분석 결과 저장 완료 (ID: {new_id}, User: {user_id})")
-        return new_id
+    except ImportError:
+        # PC 환경이거나 라이브러리가 없는 경우
+        raise Exception("하드웨어 센서를 찾을 수 없습니다. (PC에서는 수분/유분 값을 직접 입력해주세요.)")
 
     except Exception as e:
-        logger.error(f"❌ DB 저장 실패: {e}")
-        return None
+        logger.error(f"센서 하드웨어 오류: {e}")
+        raise Exception(f"센서 측정 중 오류 발생: {str(e)}")
 
 
 # ==============================================================================
-# 2. 분석 실행 메인 로직 (Main Logic)
+# 2. 통합 분석 프로세스 (Main Process)
 # ==============================================================================
 
-def perform_skin_analysis(user_id: str, image_path: str, moisture: int, sebum: int) -> dict:
+async def process_skin_analysis(user_id: str, file: UploadFile, moisture: int = None, sebum: int = None):
     """
-    [핵심 함수] 이미지 경로와 센서 데이터를 받아 피부 분석 전체 과정을 수행합니다.
-
-    Args:
-        user_id (str): 사용자 ID
-        image_path (str): 분석할 이미지 파일 경로
-        moisture (int): 수분 센서값
-        sebum (int): 유분 센서값
-
-    Returns:
-        dict: {analysis_id, gpt_result, manual_input} 또는 None
+    [분석 총괄 함수]
+    1. 센서값 읽기 (없으면 에러)
+    2. 이미지 저장
+    3. GPT API 호출 (실패하면 에러)
+    4. 결과 통합 및 DB 저장
     """
-    logger.info(f"📸 [피부 분석 요청] User: {user_id}, Path: {image_path}")
 
-    # 1. 이미지 파일 검증
-    if not os.path.exists(image_path):
-        logger.error(f"⚠️ 파일이 존재하지 않습니다: {image_path}")
-        return None
+    # -------------------------------------------------------
+    # [Step 1] 센서 데이터 확보 (수분/유분)
+    # -------------------------------------------------------
+    sensor_source = "app_input"
 
-    # 2. GPT Vision API 호출
-    logger.info("🚀 AI(GPT) 분석 수행 중...")
-    gpt_result = analyze_skin_image(image_path)
+    # 앱(웹)에서 값을 안 보냈다면(None), 하드웨어 센서를 직접 읽어야 함
+    if moisture is None or sebum is None:
+        try:
+            sensor_data = read_hardware_sensors()
+
+            # 센서에서 읽어온 값 적용
+            if moisture is None: moisture = sensor_data["moisture"]
+            if sebum is None: sebum = sensor_data["sebum"]
+            sensor_source = "hardware_sensor"
+
+        except Exception as e:
+            # 센서도 없고 입력도 없으면 -> 분석 불가(에러 처리)
+            error_msg = f"수분/유분 데이터가 누락되었습니다. ({str(e)})"
+            logger.error(error_msg)
+            raise HTTPException(status_code=400, detail=error_msg)
+
+    # -------------------------------------------------------
+    # [Step 2] 이미지 파일 저장
+    # -------------------------------------------------------
+    filename = f"{uuid.uuid4()}.jpg"
+    file_path = f"temp_uploads/{filename}"
+
+    try:
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+    except Exception as e:
+        logger.error(f"파일 저장 실패: {e}")
+        raise HTTPException(status_code=500, detail="이미지 파일 저장 실패")
+
+    # -------------------------------------------------------
+    # [Step 3] AI 피부 분석 (GPT Vision API)
+    # -------------------------------------------------------
+
+    logger.info(f"🤖 GPT 분석 요청 시작: {file_path}")
+
+    # 실제 GPT API 호출
+    gpt_result = analyze_skin_image(file_path)
 
     if not gpt_result:
-        logger.warning("❌ GPT 분석 실패 (API 오류 또는 응답 없음)")
-        return None
+        # GPT 분석 실패 시 -> 분석 불가(에러 처리)
+        logger.error("GPT API 응답 실패")
+        raise HTTPException(status_code=502, detail="AI 분석 서버(GPT) 응답이 없습니다. 잠시 후 다시 시도해주세요.")
 
-    logger.info(f"📊 AI 분석 완료: {gpt_result}")
+    logger.info(f"✅ GPT 분석 완료: {gpt_result}")
 
-    # [신규] 3. 종합 점수 계산 (Total Score)
-    # GPT 점수는 100점일수록 나쁨 -> 따라서 평균을 내서 100에서 뺌 (높을수록 좋음)
-    try:
-        metrics = [
-            gpt_result.get("acne", 0),
-            gpt_result.get("wrinkles", 0),
-            gpt_result.get("pores", 0),
-            gpt_result.get("pigmentation", 0),
-            gpt_result.get("redness", 0)
-        ]
-        avg_badness = sum(metrics) / len(metrics)
-        total_score = int(100 - avg_badness)  # 100점 만점 기준
-        total_score = max(0, min(100, total_score))  # 0~100 사이로 보정
-    except Exception as e:
-        logger.error(f"점수 계산 오류: {e}")
-        total_score = 50  # 오류 시 기본값
-
-    # 4. 데이터 패키징
-    manual_input = {"moisture": moisture, "sebum": sebum}
-
-    # 5. DB 저장
-    analysis_id = save_analysis_to_db(user_id, gpt_result, manual_input, total_score, image_path)
-
-    if not analysis_id:
-        logger.error("⚠️ DB 저장이 실패했지만 분석 결과는 반환합니다.")
-
-    # 5. 최종 결과 반환
-    return {
-        "analysis_id": analysis_id,
-        "total_score": total_score,
-        "gpt_result": gpt_result,
-        "manual_input": manual_input
+    # -------------------------------------------------------
+    # [Step 4] 데이터 통합
+    # -------------------------------------------------------
+    scores = {
+        "moisture": moisture,
+        "sebum": sebum,
+        "acne": gpt_result.get("acne", 0),
+        "wrinkles": gpt_result.get("wrinkles", 0),
+        "pores": gpt_result.get("pores", 0),
+        "redness": gpt_result.get("redness", 0),
+        "pigmentation": gpt_result.get("pigmentation", 0)
     }
 
+    # 종합 점수 계산
+    negative_sum = (
+        scores["acne"] + scores["wrinkles"] + scores["pores"] +
+        scores["redness"] + scores["pigmentation"]
+    )
+    total_score = max(0, 100 - int(negative_sum / 5))
 
-# ==============================================================================
-# 3. 테스트 코드 (Local Test)
-# ==============================================================================
-if __name__ == "__main__":
-    print("\n🧪 [테스트 모드] skin_analyzer.py 직접 실행")
+    # -------------------------------------------------------
+    # [Step 5] DB 저장
+    # -------------------------------------------------------
+    new_id = save_analysis_log_db(user_id, file_path, scores)
 
-    # 1. 테스트용 가짜 데이터
-    # (주의: 실제 존재하는 이미지 경로를 입력해야 테스트 가능)
-    TEST_USER = "test_local_user"
-    TEST_IMG = "image-data/test/images/acne-5_jpeg.rf.2d6671715f0149df7b494c4d3f12a98b.jpg"
-    TEST_MOIST = 35
-    TEST_SEBUM = 75
+    if not new_id:
+        raise HTTPException(status_code=500, detail="데이터베이스 저장 실패")
 
-    # 2. 실행
-    result = perform_skin_analysis(TEST_USER, TEST_IMG, TEST_MOIST, TEST_SEBUM)
-
-    # 3. 결과 출력
-    if result:
-        print("\n🎉 [성공] 분석 프로세스 완료")
-        print(result)
-    else:
-        print("\n💥 [실패] 분석 중 오류 발생")
+    return {
+        "analysis_id": new_id,
+        "message": "분석 완료",
+        "source": f"{sensor_source} + GPT_Vision",
+        "total_score": total_score,
+        "scores": scores
+    }

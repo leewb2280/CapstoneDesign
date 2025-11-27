@@ -5,8 +5,7 @@ OpenAI API와 통신하는 모든 기능을 전담하는 모듈입니다.
 
 기능:
 1. analyze_skin_image: 피부 사진 분석 (Vision)
-2. analyze_product_tags: 제품 1개 태그 분석 (Chat)
-3. analyze_batch_product_tags: 제품 여러 개 배치 분석 (Chat Batch) - [NEW]
+3. analyze_batch_product_tags: 제품 여러 개 배치 분석 (Chat Batch)
 """
 
 import os
@@ -77,13 +76,6 @@ def analyze_skin_image(image_path: str) -> dict:
 # ==============================================================================
 # 2. 텍스트 분석 (Chat Completion)
 # ==============================================================================
-
-def analyze_product_tags(name: str, category: str) -> dict:
-    """(단건 처리용) 제품 1개의 태그 분석"""
-    # ... (기존 코드 유지하거나 아래 배치 함수를 활용해도 됨)
-    # 여기서는 일단 둡니다.
-    pass
-
 
 def analyze_batch_product_tags(batch_data: list) -> dict:
     """

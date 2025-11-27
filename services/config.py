@@ -180,6 +180,6 @@ SKIN_THRESHOLDS = {
     "oily_limit": 70.0,      # 유분 70 초과 (지성)
     "sensitive_limit": 50.0, # 홍조 50 초과 (민감성)
     "pore_limit": 60.0,      # 모공 60 초과 (모공 고민)
-    "acne_limit": 50.0,      # 트러블 50 초과 (트러블성) [추가됨]
-    "wrinkle_limit": 50.0    # 주름 50 초과 (탄력 저하) [추가됨]
+    "acne_limit": 50.0,      # 트러블 50 초과 (트러블성)
+    "wrinkle_limit": 50.0    # 주름 50 초과 (탄력 저하)
 }

@@ -1,6 +1,6 @@
 # skin_advisor_logic.py
 """
-[핵심 로직 담당]
+[로직 담당]
 수집된 데이터(피부, 환경, 사용자)를 분석하여 피부 상태를 진단하고,
 최적의 제품과 루틴을 추천하는 알고리즘 엔진입니다.
 
@@ -12,28 +12,19 @@
 """
 
 import datetime
-from .config import *  # 가중치(RULES), 번역 매핑(CAT_KO 등) 로드
+from .config import *
 
 
 class SkinCareAdvisor:
     def __init__(self, payload: dict):
         """
         분석 엔진 초기화
-
-        Args:
-            payload (dict): {
-                "camera": {acne, wrinkles, ...},
-                "env": {uv, humidity, ...},
-                "lifestyle": {sleep, water, ...},
-                "user": {age, pref_texture},
-                "time": {hour}
-            }
         """
-        self.cam = payload["camera"]  # 센서/AI 분석 데이터
-        self.env = payload["env"]  # 날씨 환경 데이터
-        self.life = payload["lifestyle"]  # 생활습관 설문 데이터
-        self.user = payload["user"]  # 사용자 기본 정보
-        self.hour = payload["time"]["hour"]
+        self.cam = payload["camera"]        # 센서/AI 분석 데이터
+        self.env = payload["env"]           # 날씨 환경 데이터
+        self.life = payload["lifestyle"]    # 생활습관 설문 데이터
+        self.user = payload["user"]         # 사용자 기본 정보
+        self.hour = payload["time"]["hour"] # 시간 데이터
 
         # 파생 지표 즉시 계산 (건조도, 민감도 등)
         self.metrics = self._derive_metrics()
@@ -263,6 +254,27 @@ class SkinCareAdvisor:
                 score += 10
                 evidences.append(f"20대 피지 관리({user_age}세) → 산뜻한 케어(+10점)")
 
+
+        # ---------------------------------------------------------
+        # [E] 안전 규칙 (Safety Rules) - [복구된 기능]
+        # ---------------------------------------------------------
+
+        # 1. 낮 시간(06:00 ~ 18:00) 레티놀 추천 금지
+        # 레티놀은 자외선을 받으면 피부에 독이 될 수 있어 밤에만 써야 합니다.
+        if 6 <= self.hour < 18:
+            if "retinol" in ings or "retinoid" in tags:
+                score = -999  # 추천 목록에서 즉시 탈락시킴
+                evidences.append(f"현재 시간({self.hour}시) → 주간 레티놀 사용 금지(-999점)")
+
+        # 2. 민감성 피부 강한 성분 금지 (final_skin.py 로직 반영)
+        is_sensitive = self.metrics["sensitivity"] >= 60 or str(self.life.get("sensitivity")).lower() == "yes"
+        if is_sensitive:
+            # 고농도 비타민C(Ascorbic Acid), 강한 산(AHA/BHA) 등 자극 성분 체크
+            # config.py의 blacklist 활용 가능하지만, 여기서는 직관적으로 태그 체크
+            if any(t in tags for t in ["strong_acid", "high_alcohol"]):
+                score = -999
+                evidences.append("민감성 피부 → 자극 성분 제외(-999점)")
+
         return score, detail, evidences
 
     # ==========================================================================
@@ -293,44 +305,116 @@ class SkinCareAdvisor:
 
     def generate_routine_text(self, top3_products) -> dict:
         """
-        [루틴 생성] 추천된 Top 3 제품을 활용하여 아침/저녁 루틴 가이드를 작성합니다.
-
-        Returns:
-            dict: {"am": [...], "pm": [...]}
+        [루틴 생성 업그레이드]
+        팀원 코드(final_skin.py)의 디테일한 케어 팁을 이식하여,
+        단순 나열이 아닌 '상황별 맞춤 행동 지침'을 제공합니다.
         """
-        slots = {"sun": None, "relief": None, "moist": None}
+        # 1. 상황 판단 플래그 (Context Flags)
+        is_sensitive = self.metrics["sensitivity"] >= 60 or str(self.life.get("sensitivity")).lower() == "yes"
+        high_dry = self.metrics["dryness"] >= 60
+        high_acne = self.metrics["acne"] >= 60
+        high_uv = self.env["uv"] >= 6
+        hot_day = self.env["temperature"] >= 28
+        dry_env = self.env["humidity"] <= 40
+        pref = self.user.get("pref_texture", "gel")
+
+        # 2. 제품 슬롯 매핑 (추천된 제품을 역할별로 분류)
+        slots = {"sun": None, "relief": None, "moist": None, "retinol": None}
 
         for item in top3_products:
             name = f"**{item['name']}**"
             cat = item["category"]
-            tags = item.get("tags", [])
-            tag_str = str(tags)
+            tags = str(item.get("tags", []))
 
-            if "선크림" in cat or "SPF" in tag_str:
+            # 선크림
+            if "선크림" in cat or "SPF" in tags:
                 if not slots["sun"]: slots["sun"] = name
-            elif any(x in tag_str for x in ["진정", "시카", "트러블"]):
+            # 레티놀 (밤 전용)
+            elif "레티놀" in tags or "retinol" in tags or "안티에이징" in tags:
+                if not slots["retinol"]: slots["retinol"] = name
+            # 진정/트러블
+            elif any(x in tags for x in ["진정", "시카", "트러블", "BHA"]):
                 if not slots["relief"]: slots["relief"] = name
-            elif any(x in tag_str for x in ["보습", "장벽", "히알루론산"]):
+            # 보습
+            elif any(x in tags for x in ["보습", "장벽", "히알루론산", "크림"]):
                 if not slots["moist"]: slots["moist"] = name
 
-        # 아침 루틴 (보습 -> 선케어)
-        am = ["🚿 **아침**: 미온수 세안 → 토너(결 정돈)"]
-        if slots["moist"]:
-            am.append(f"→ {slots['moist']} (수분 충전)")
-        elif slots["relief"]:
-            am.append(f"→ {slots['relief']} (진정 케어)")
-        else:
-            am.append("→ 가벼운 수분 에센스/로션")
+        # ---------------------------------------------------------
+        # [AM] 아침 루틴 구성
+        # ---------------------------------------------------------
+        am = []
 
+        # (1) 세안
+        if is_sensitive:
+            am.append("🚿 **아침**: 폼 클렌저 대신 '물세안'이나 약산성 젤로 가볍게 시작하세요.")
+        elif self.metrics["sebum"] >= 60:
+            am.append("🚿 **아침**: 밤사이 쌓인 유분 제거를 위해 T존 위주로 꼼꼼히 세안하세요.")
+        else:
+            am.append("🚿 **아침**: 미온수로 가볍게 씻어 피부 장벽을 지켜주세요.")
+
+        # (2) 토너/에센스
+        if dry_env or high_dry:
+            am.append("💧 **수분**: 건조한 날씨입니다. 토너를 2번 겹쳐 바르는 '레이어링'을 추천해요.")
+        else:
+            am.append("💧 **결 정돈**: 토너로 피부결을 정돈해주세요.")
+
+        # (3) 메인 케어 (진정 vs 보습)
+        if slots["relief"]:
+            am.append(f"🌿 **진정**: {slots['relief']} (자극받은 피부 보호)")
+        elif slots["moist"]:
+            if hot_day:
+                am.append(f"💧 **보습**: {slots['moist']} (덥지 않게 얇게 펴 바르기)")
+            else:
+                am.append(f"💧 **보습**: {slots['moist']} (수분막 형성)")
+        else:
+            # 추천 제품에 없으면 일반적인 팁
+            if pref == "gel":
+                am.append("💧 **보습**: 선호하시는 가벼운 젤 로션으로 산뜻하게 마무리.")
+            else:
+                am.append("💧 **보습**: 가지고 계신 수분 크림을 얇게 발라주세요.")
+
+        # (4) 선크림 (필수)
         if slots["sun"]:
-            am.append(f"→ {slots['sun']} (자외선 차단 필수!)")
+            if high_uv:
+                am.append(f"☀️ **선케어**: {slots['sun']} (UV 강함! 검지 두 마디만큼 충분히)")
+            else:
+                am.append(f"☀️ **선케어**: {slots['sun']} (외출 20분 전 도포)")
         else:
-            am.append("→ **선크림** (집에 있는 제품이라도 꼭 발라주세요)")
+            am.append("☀️ **선케어**: **선크림**은 선택이 아닌 필수! (집에 있는 제품 꼭 챙기세요)")
 
-        # 저녁 루틴 (진정 -> 보습)
-        pm = ["🌙 **저녁**: 꼼꼼한 세안 → 토너"]
-        if slots["relief"]: pm.append(f"→ {slots['relief']} (지친 피부 진정)")
-        if slots["moist"]: pm.append(f"→ {slots['moist']} (수분막 형성)")
-        if not slots["relief"] and not slots["moist"]: pm.append("→ 평소 쓰시는 수분 크림 듬뿍")
+        # ---------------------------------------------------------
+        # [PM] 저녁 루틴 구성
+        # ---------------------------------------------------------
+        pm = []
+
+        # (1) 세안 (이중 세안 여부)
+        if slots["sun"] or "oil" in pref:
+            pm.append("🌙 **저녁**: 선크림/메이크업 잔여물이 남지 않게 '이중 세안' 꼼꼼히!")
+        else:
+            pm.append("🌙 **저녁**: 하루 종일 쌓인 먼지를 약산성 폼으로 부드럽게 씻어내세요.")
+
+        # (2) 스페셜 케어 (레티놀/트러블)
+        if slots["retinol"]:
+            pm.append(f"✨ **나이트케어**: {slots['retinol']} (밤에만 사용)")
+            pm.append("   💡 Tip: 자극이 느껴지면 '크림 → 레티놀 → 크림' 순서로 발라보세요(샌드위치 법).")
+
+        elif high_acne:
+            if slots["relief"]:
+                pm.append(f"🚑 **트러블**: {slots['relief']} (고민 부위에 도톰하게 얹기)")
+            else:
+                pm.append("🚑 **트러블**: 스팟 케어 제품이 있다면 고민 부위에만 톡톡.")
+
+        # (3) 마무리 보습
+        if slots["moist"]:
+            pm.append(f"🛡️ **잠금**: {slots['moist']} (수분이 날아가지 않게 듬뿍)")
+        elif slots["relief"] and not high_acne:  # 진정 제품을 보습 대용으로 쓸 때
+            pm.append(f"🌿 **진정**: {slots['relief']} (피부 휴식)")
+        else:
+            pm.append("🛡️ **보습**: 평소 쓰시는 영양 크림으로 마무리.")
+
+        # (4) 주말 스페셜 팁 (오늘이 금/토요일이면)
+        weekday = datetime.datetime.now().weekday()
+        if weekday in [4, 5, 6]:  # 금,토,일
+            pm.append("🛀 **주말 Tip**: 이번 주는 고생한 피부를 위해 마스크팩 어떠세요?")
 
         return {"am": am, "pm": pm}
