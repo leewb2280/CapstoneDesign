@@ -17,7 +17,8 @@ from core.utils import (
     get_current_weather,
     predict_trouble_proba,
     get_skin_data_by_id,
-    save_recommendation_to_db
+    save_recommendation_to_db,
+    get_user_profile_db
 )
 # 분석 로직 엔진
 from .skin_advisor_logic import SkinCareAdvisor
@@ -89,6 +90,7 @@ def run_skin_advisor(user_id: str, analysis_id: int, lifestyle: dict, user_pref:
     env_data = get_current_weather(OWM_API_KEY)
 
     # 3. 분석용 Payload 생성
+    # (인자로 받은 lifestyle, user_pref를 그대로 사용합니다)
     payload = {
         "camera": camera_data,
         "env": env_data,
@@ -106,7 +108,6 @@ def run_skin_advisor(user_id: str, analysis_id: int, lifestyle: dict, user_pref:
     skin_age = int(advisor.calc_skin_age())
 
     # 2. 제품 추천
-    # (최신 재고 반영을 위해 매번 DB에서 로드)
     product_db = load_products_from_db()
     rec_result = advisor.recommend_products(product_db)
 
@@ -120,12 +121,9 @@ def run_skin_advisor(user_id: str, analysis_id: int, lifestyle: dict, user_pref:
     # -------------------------------------------------------
     # Step 3. 데이터 정리 및 저장 (Cleanup & Save)
     # -------------------------------------------------------
-
-    # 1. Numpy 타입 제거 (JSON 변환 안전하게)
     clean_rec_result = convert_numpy_to_native(rec_result)
     clean_routine = convert_numpy_to_native(routine)
 
-    # 2. 결과 DB 저장
     save_recommendation_to_db(
         user_id=user_id,
         analysis_id=analysis_id,
@@ -137,7 +135,6 @@ def run_skin_advisor(user_id: str, analysis_id: int, lifestyle: dict, user_pref:
 
     logger.info(f"✨ [Advisor] 분석 완료 (피부나이: {skin_age}세, 트러블확률: {int(raw_prob * 100)}%)")
 
-    # 3. 최종 결과 반환
     return {
         "user_id": user_id,
         "skin_age": skin_age,

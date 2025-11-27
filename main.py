@@ -24,7 +24,8 @@ from services.skin_advisor import run_skin_advisor
 from services.data_collector import run_data_collection
 from core.utils import (
     register_user_db, authenticate_user_db, get_user_history_db,
-    create_user_table, check_user_exists_db
+    create_user_table, check_user_exists_db,
+    save_user_profile_db, get_user_profile_db
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -38,6 +39,8 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 # ==========================================
 # 1. FastAPI 앱 초기화 및 설정
 # ==========================================
+create_user_table()
+
 app = FastAPI()
 
 # CORS 설정
@@ -61,7 +64,7 @@ class LifestyleData(BaseModel):
     sleep_hours_7d: float
     water_intake_ml: int
     wash_freq_per_day: int
-    wash_temp: str
+    wash_temp: str = "warm"
     sensitivity: str
 
 
@@ -69,12 +72,22 @@ class UserPref(BaseModel):
     age: int
     pref_texture: str
 
-
 class RecommendRequest(BaseModel):
     user_id: str
     analysis_id: int
     lifestyle: LifestyleData
     user_pref: UserPref
+
+# 1. 데이터 모델 수정 (합치기)
+class UserProfileRequest(BaseModel):
+    user_id: str
+    age: int
+    sleep_hours_7d: float
+    water_intake_ml: int
+    wash_freq_per_day: int
+    sensitivity: str
+    pref_texture: str
+
 
 
 class AuthRequest(BaseModel):
@@ -212,6 +225,12 @@ async def history_android():
 def read_root():
     return FileResponse("static/index.html")
 
+@app.get("/user/profile/{user_id}", tags=["User"])
+async def get_profile_endpoint(user_id: str):
+    profile = get_user_profile_db(user_id)
+    if not profile:
+        return {} # 없으면 빈 객체 반환 (프론트에서 기본값 사용)
+    return profile
 
 @app.post("/analyze", tags=["Mobile App"])
 async def analyze_skin_endpoint(
@@ -254,12 +273,6 @@ async def analyze_skin_endpoint(
         logger.error(f"Analyze Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-    # [수정 3] finally 블록 삭제 (또는 주석 처리)
-    # 이미지를 지우면 나중에 html에서 볼 수 없으므로 삭제 로직 제거함
-    # finally:
-    #     if file_path and os.path.exists(file_path):
-    #         os.remove(file_path)
-
 
 @app.post("/analyze-hardware", tags=["Kiosk"])
 async def analyze_hardware_endpoint(user_id: str = Form(...)):
@@ -281,23 +294,42 @@ async def analyze_hardware_endpoint(user_id: str = Form(...)):
         logger.error(f"Hardware Analyze Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
+# [수정] 추천 요청 엔드포인트 (데이터 수신 -> DB 업데이트 -> 분석)
 @app.post("/recommend", tags=["Mobile App"])
 async def recommend_endpoint(req: RecommendRequest):
-    logger.info(f"📥 추천 요청: User {req.user_id}, ID {req.analysis_id}")
+    logger.info(f"📥 추천 요청 및 프로필 업데이트: User {req.user_id}")
+
     if not check_user_exists_db(req.user_id):
         raise HTTPException(status_code=401, detail="존재하지 않는 회원입니다.")
 
     try:
+        # 1. 입력받은 최신 정보를 DB에 저장 (Upsert)
+        # Lifestyle과 UserPref를 합쳐서 DB 저장 포맷으로 변환
+        profile_data = {
+            "age": req.user_pref.age,
+            "pref_texture": req.user_pref.pref_texture,
+            "sleep_hours_7d": req.lifestyle.sleep_hours_7d,
+            "water_intake_ml": req.lifestyle.water_intake_ml,
+            "wash_freq_per_day": req.lifestyle.wash_freq_per_day,
+            "sensitivity": req.lifestyle.sensitivity,
+            "wash_temp": req.lifestyle.wash_temp
+        }
+        save_user_profile_db(req.user_id, profile_data)
+
+        # 2. 분석 엔진 실행 (방금 받은 데이터를 인자로 넘김)
         final_result = run_skin_advisor(
             user_id=req.user_id,
             analysis_id=req.analysis_id,
             lifestyle=req.lifestyle.model_dump(),
             user_pref=req.user_pref.model_dump()
         )
+
         if not final_result:
-            raise HTTPException(status_code=404, detail="Data Not Found")
+            raise HTTPException(status_code=404, detail="Analysis Failed")
 
         return {"message": "Recommendation successful", "result": final_result}
+
     except Exception as e:
         logger.error(f"Recommend Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -333,6 +365,22 @@ async def login_endpoint(req: AuthRequest):
 async def history_endpoint(user_id: str):
     history = get_user_history_db(user_id)
     return {"user_id": user_id, "history": history}
+
+
+# [신규 엔드포인트] 사용자 정보 저장/수정 (설정 페이지용)
+@app.post("/user/profile", tags=["User"])
+async def update_profile_endpoint(req: UserProfileRequest):
+    if not check_user_exists_db(req.user_id):
+        raise HTTPException(status_code=401, detail="존재하지 않는 회원입니다.")
+
+    # DB 저장 함수 호출
+    data = req.model_dump()
+    success = save_user_profile_db(req.user_id, data)
+
+    if success:
+        return {"message": "프로필이 성공적으로 저장되었습니다."}
+    else:
+        raise HTTPException(status_code=500, detail="DB 저장 실패")
 
 
 if __name__ == "__main__":

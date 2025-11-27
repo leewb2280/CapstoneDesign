@@ -202,6 +202,28 @@
             font-weight: 600;
             color: var(--text-light);
         }
+        /* [추가] 기본값(아직 저장 안 됨)일 때 적용할 스타일 */
+        .default-value {
+            color: #9ca3af !important; /* 회색 (Gray-400) */
+            font-style: italic;        /* 기울임꼴로 힌트 느낌 강조 */
+        }
+        /* 사용자가 입력하려고 클릭(Focus)하거나 값을 바꾸면 검은색으로 */
+        input:focus, select:focus,
+        input:not(.default-value), select:not(.default-value) {
+            color: #1f2937 !important; /* 진한 검은색 */
+            font-style: normal;
+        }
+        .info-box {
+            background-color: #fff7ed;
+            border: 1px solid #fdba74;
+            color: #9a3412;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            font-size: 0.9em;
+            display: flex;
+            align-items: center;
+        }
     </style>
 </head>
 
@@ -273,17 +295,20 @@
             </div>
         </div>
 
-        <!-- Step 2: Recommendation -->
         <div class="card hidden" id="step2Card">
             <h3>💊 STEP 2. 맞춤 처방</h3>
-            <p style="color:var(--text-light); font-size:0.9em;">분석 ID: <span id="savedAnalysisId"
-                    style="font-weight:bold;">None</span></p>
+            <p style="color:var(--text-light); font-size:0.9em;">분석 ID: <span id="savedAnalysisId" style="font-weight:bold;">None</span></p>
+
+            <div class="info-box">
+                ℹ️ 회색 글씨는 기본 예시입니다.<br>
+                ℹ️ 저장된 회원님의 정보입니다. 변경사항이 있다면 수정해주세요. (결과 확인 시 자동 업데이트)
+            </div>
 
             <div class="grid-2">
+                <div><label>나이</label><input type="number" id="age" value="25"></div>
                 <div><label>수면 시간 (시간)</label><input type="number" id="sleep" value="7.0"></div>
                 <div><label>물 섭취량 (ml)</label><input type="number" id="water" value="1500"></div>
                 <div><label>세안 횟수 (일)</label><input type="number" id="washFreq" value="2"></div>
-                <div><label>나이</label><input type="number" id="age" value="24"></div>
             </div>
 
             <div class="grid-2">
@@ -302,9 +327,17 @@
                         <option value="lotion">로션</option>
                     </select>
                 </div>
+                <div>
+                    <label>세안 온도</label>
+                    <select id="washTemp">
+                        <option value="cold">차가운 물</option>
+                        <option value="warm" selected>미온수 (권장)</option>
+                        <option value="hot">뜨거운 물</option>
+                    </select>
+                </div>
             </div>
 
-            <button class="btn-success" onclick="reqRecommend()">최종 처방 받기</button>
+            <button class="btn-success" onclick="reqRecommend()">최종 처방 받기 (저장 및 분석)</button>
 
             <div id="result2Area" class="hidden" style="margin-top:20px;">
                 <h4>🏆 최종 추천 결과</h4>
@@ -432,14 +465,58 @@
                     document.getElementById('statusText').innerHTML = `👤 <b>${currentUser.name}</b>님`;
                     document.getElementById('currentUserId').value = currentUser.user_id;
 
-                    // 로그인 성공 시 자동으로 기록 불러오기
+                    await loadUserProfile(currentUser.user_id);
+
                     reqHistory();
                 } else {
                     alert(data.detail);
                 }
             } catch (e) { alert("서버 오류: " + e); }
         }
+        // [신규] 입력창 활성화 함수 (사용자가 건드리면 검은색으로 변경)
+        function activateInput(el) {
+            el.classList.remove('default-value');
+        }
+        // [수정] 사용자 프로필 불러오기 함수
+        async function loadUserProfile(userId) {
+            try {
+                const res = await fetch(`/user/profile/${userId}`);
+                const data = await res.json();
 
+                // 데이터가 있으면 값을 채우고 'default-value' 클래스 제거 (검은색)
+                // 데이터가 없으면(빈 객체) 기본값 유지하고 'default-value' 클래스 유지 (회색)
+                if (data && Object.keys(data).length > 0) {
+                    setInputValue('age', data.age);
+                    setInputValue('sleep', data.sleep_hours_7d);
+                    setInputValue('water', data.water_intake_ml);
+                    setInputValue('washFreq', data.wash_freq_per_day);
+                    setInputValue('washTemp', data.wash_temp);
+                    setInputValue('sensitivity', data.sensitivity);
+                    setInputValue('texture', data.pref_texture);
+                } else {
+                    // 데이터가 없는 신규 유저라면 모든 필드에 회색 스타일 적용
+                    resetToDefaultStyle();
+                }
+            } catch (e) {
+                console.error("프로필 로드 실패:", e);
+            }
+        }
+        // 값 설정 및 스타일 처리 헬퍼 함수
+        function setInputValue(id, val) {
+            const el = document.getElementById(id);
+            if (val !== undefined && val !== null) {
+                el.value = val;
+                el.classList.remove('default-value'); // DB에 값이 있으면 검은색
+            }
+        }
+
+        // 초기화 헬퍼 함수 (신규 유저용)
+        function resetToDefaultStyle() {
+            const ids = ['age', 'sleep', 'water', 'washFreq', 'washTemp', 'sensitivity', 'texture'];
+            ids.forEach(id => {
+                document.getElementById(id).classList.add('default-value');
+            });
+        }
         // 회원가입 요청
         async function reqSignup() {
             const id = document.getElementById('signId').value;
@@ -558,7 +635,7 @@
                     "sleep_hours_7d": parseFloat(document.getElementById('sleep').value),
                     "water_intake_ml": parseInt(document.getElementById('water').value),
                     "wash_freq_per_day": parseInt(document.getElementById('washFreq').value),
-                    "wash_temp": "normal",
+                    "wash_temp": document.getElementById('washTemp').value,
                     "sensitivity": document.getElementById('sensitivity').value
                 },
                 "user_pref": {
@@ -574,10 +651,14 @@
                     body: JSON.stringify(payload)
                 });
                 const data = await res.json();
+
+                if (!res.ok) throw new Error(data.detail);
+
                 document.getElementById('result2Area').classList.remove('hidden');
                 document.getElementById('result2').innerText = JSON.stringify(data, null, 2);
 
-                // 추천 완료 후 기록 갱신
+                alert("✅ 처방 완료 & 정보가 저장되었습니다.");
+
                 reqHistory();
             } catch (err) { alert(err); }
         }

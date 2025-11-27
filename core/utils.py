@@ -312,11 +312,107 @@ def create_user_table():
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         """)
+
+        # [추가] 2. 사용자 상세 프로필 테이블 (6가지 항목)
+        # user_id를 Foreign Key로 사용하여 users 테이블과 연결
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS user_profiles (
+                user_id VARCHAR(50) PRIMARY KEY,
+                age INTEGER,
+                sleep_hours_7d REAL,
+                water_intake_ml INTEGER,
+                wash_freq_per_day INTEGER,
+                wash_temp TEXT,
+                sensitivity TEXT,
+                pref_texture TEXT,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT fk_user
+                    FOREIGN KEY(user_id) 
+                    REFERENCES users(user_id)
+                    ON DELETE CASCADE
+            );
+        """)
+
         conn.commit()
         cursor.close()
         conn.close()
     except Exception as e:
         logger.error(f"사용자 테이블 생성 실패: {e}")
+
+
+# [신규 함수] 프로필 저장/업데이트 (Upsert)
+def save_user_profile_db(user_id, data: dict):
+    try:
+        conn = psycopg2.connect(**DB_CONFIG)
+        cursor = conn.cursor()
+
+        # 이미 있으면 업데이트, 없으면 삽입 (ON CONFLICT 구문 사용)
+        query = """
+            INSERT INTO user_profiles 
+            (user_id, age, sleep_hours_7d, water_intake_ml, wash_freq_per_day, sensitivity, pref_texture, wash_temp)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (user_id) 
+            DO UPDATE SET
+                age = EXCLUDED.age,
+                sleep_hours_7d = EXCLUDED.sleep_hours_7d,
+                water_intake_ml = EXCLUDED.water_intake_ml,
+                wash_freq_per_day = EXCLUDED.wash_freq_per_day,
+                sensitivity = EXCLUDED.sensitivity,
+                pref_texture = EXCLUDED.pref_texture,
+                wash_temp = EXCLUDED.wash_temp,
+                updated_at = CURRENT_TIMESTAMP;
+        """
+        cursor.execute(query, (
+            user_id,
+            data.get('age'),
+            data.get('sleep_hours_7d'),
+            data.get('water_intake_ml'),
+            data.get('wash_freq_per_day'),
+            data.get('sensitivity'),
+            data.get('pref_texture'),
+            data.get('wash_temp', 'warm')
+        ))
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"프로필 저장 실패: {e}")
+        return False
+
+
+# [신규 함수] 프로필 조회
+def get_user_profile_db(user_id):
+    try:
+        conn = psycopg2.connect(**DB_CONFIG)
+        cursor = conn.cursor()
+
+        query = """
+            SELECT age, sleep_hours_7d, water_intake_ml, wash_freq_per_day, sensitivity, pref_texture, wash_temp
+            FROM user_profiles
+            WHERE user_id = %s
+        """
+        cursor.execute(query, (user_id,))
+        row = cursor.fetchone()
+        cursor.close()
+        conn.close()
+
+        if row:
+            # 딕셔너리로 변환하여 반환
+            return {
+                "age": row[0],
+                "sleep_hours_7d": row[1],
+                "water_intake_ml": row[2],
+                "wash_freq_per_day": row[3],
+                "sensitivity": row[4],
+                "pref_texture": row[5],
+                "wash_temp": row[6]
+            }
+        return None  # 프로필 없음
+    except Exception as e:
+        logger.error(f"프로필 조회 실패: {e}")
+        return None
 
 
 def register_user_db(user_id, password, name):
