@@ -96,10 +96,10 @@ RULES = {
     # [환경 규칙] 날씨 데이터(UV, 습도, 기온)에 따른 가중치
     "env_rules": {
         "uv": {
-            "low": {"SPF30": 5},
-            "mod": {"SPF30": 15},
-            "high": {"SPF50": 30},
-            "very": {"SPF50": 35},
+            "low": {"spf": 5},
+            "mod": {"spf": 15},
+            "high": {"spf": 30},
+            "very": {"spf": 35},
         },
         "humidity": {
             "dry": {"Rich_Moist": 20, "Occlusive": 10},
@@ -183,3 +183,34 @@ SKIN_THRESHOLDS = {
     "acne_limit": 50.0,      # 트러블 50 초과 (트러블성)
     "wrinkle_limit": 50.0    # 주름 50 초과 (탄력 저하)
 }
+
+# ==============================================================================
+# 5. DATA STANDARDIZATION (데이터 표준화 정의)
+# ==============================================================================
+# 데이터 수집 및 보강 시, 아래 리스트에 있는 단어만 허용합니다.
+# (GPT 프롬프트 주입 및 Regex 매핑의 기준점이 됩니다.)
+
+# [TAGS] 제품의 효과, 특징, 추천 피부 타입 (DB: tags 컬럼)
+STANDARD_TAGS = [
+    # 제형
+    "light", "rich", "gel", "cream", "watery", "oil", "balm", "fresh",
+
+    # 피부 타입/고민
+    "oily-skin", "dry-skin", "sensitive-skin", "acne-care", "sebum-care", "pore-care",
+    "anti-aging", "brightening", "soothing", "barrier", "hydration", "firming",
+
+    # 기능/특성
+    "spf", "low-ph", "hypoallergenic", "vegan", "fragrance-free", "alcohol-free"
+]
+
+# [INGREDIENTS] 핵심 성분 (DB: featured_ingredients 컬럼)
+STANDARD_INGREDIENTS = [
+    # 진정/장벽
+    "cica", "teatree", "mugwort", "heartleaf", "panthenol", "ceramide",
+    # 보습/영양
+    "hyaluronic", "collagen", "propolis", "shea-butter",
+    # 기능성
+    "retinol", "vitamin-c", "niacinamide", "azelaic",
+    # 각질
+    "aha", "bha", "pha"
+]

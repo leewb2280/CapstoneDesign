@@ -159,7 +159,8 @@ class SkinCareAdvisor:
 
         uv_targets = env_rules["uv"].get(uv_level, {})
         for target, pts in uv_targets.items():
-            if (target.lower() in tags) or (target == "SPF50" and cat == "Sunscreen"):
+            # SPF30/50 -> spf 태그 확인
+            if (target.lower() in tags) or ("spf" in tags and cat == "Sunscreen"):
                 score += pts
                 evidences.append(f"자외선 {uv_level} (UV {uv_val}) → {target} 제품(+{pts}점)")
 
@@ -183,7 +184,7 @@ class SkinCareAdvisor:
 
         temp_targets = env_rules["temp"].get(temp_level, {})
         for target, pts in temp_targets.items():
-            if target == "SebumGel" and any(t in tags for t in ["sebum", "pore", "gel"]):
+            if target == "SebumGel" and any(t in tags for t in ["sebum-care", "pore-care", "gel"]):
                 score += pts
                 evidences.append(f"더운 날씨({t_val}도) → 피지 조절/젤(+{pts}점)")
             elif target == "BarrierCream" and any(t in tags for t in ["barrier", "ceramide", "cream"]):
@@ -200,7 +201,7 @@ class SkinCareAdvisor:
         if d_sebum >= 60:
             targets = skin_rules["sebum_high"]
             for target, pts in targets.items():
-                if target == "SebumGel" and any(t in tags for t in ["sebum", "oily-skin"]):
+                if target == "SebumGel" and any(t in tags for t in ["sebum-care", "oily-skin"]):
                     score += pts
                     evidences.append(f"유분/모공 고민 → 피지 케어(+{pts}점)")
                 elif target == "Heavy_Oil" and ("oil" in tags or "balm" in tags):
@@ -211,7 +212,7 @@ class SkinCareAdvisor:
         if self.metrics["acne"] >= 60:
             targets = skin_rules["acne_high"]
             for target, pts in targets.items():
-                if target == "BHA_Azelaic" and any(t in tags for t in ["bha", "azelaic", "tea tree", "acne-care"]):
+                if target == "BHA_Azelaic" and (any(t in tags for t in ["acne-care"]) or any(i in ings for i in ["bha", "azelaic", "teatree"])):
                     score += pts
                     evidences.append(f"트러블 지수 높음 → 진정/BHA 성분(+{pts}점)")
 
@@ -219,12 +220,12 @@ class SkinCareAdvisor:
         if self.metrics["sensitivity"] >= 60:
             targets = skin_rules["redness_high"]
             for target, pts in targets.items():
-                if target == "SoothingFF" and any(t in tags for t in ["cica", "soothing", "mugwort"]):
+                if target == "SoothingFF" and (any(t in tags for t in ["soothing"]) or any(i in ings for i in ["cica", "mugwort", "heartleaf"])):
                     score += pts
                     evidences.append(f"민감/홍조 심함 → 시카/진정(+{pts}점)")
 
                 # 감점 요인 (강한 자극 성분)
-                if target == "Strong_Acid" and ("aha" in tags or "bha" in tags):
+                if target == "Strong_Acid" and (any(i in ings for i in ["aha", "bha"])):
                     score += pts
                 if target == "High_Retinol" and ("retinol" in ings):
                     score += pts
@@ -244,7 +245,7 @@ class SkinCareAdvisor:
 
         # 30대 이상이면 '탄력/주름/레티놀' 제품에 가산점 부여
         if user_age >= 30:
-            if any(t in tags for t in ["anti-aging", "retinoid", "collagen", "rich"]):
+            if any(t in tags for t in ["anti-aging", "firming", "rich"]) or any(i in ings for i in ["retinol", "collagen"]):
                 score += 15
                 evidences.append(f"30대 피부 관리({user_age}세) → 안티에이징 케어(+15점)")
 
@@ -256,13 +257,13 @@ class SkinCareAdvisor:
 
 
         # ---------------------------------------------------------
-        # [E] 안전 규칙 (Safety Rules) - [복구된 기능]
+        # [E] 안전 규칙 (Safety Rules)
         # ---------------------------------------------------------
 
         # 1. 낮 시간(06:00 ~ 18:00) 레티놀 추천 금지
         # 레티놀은 자외선을 받으면 피부에 독이 될 수 있어 밤에만 써야 합니다.
         if 6 <= self.hour < 18:
-            if "retinol" in ings or "retinoid" in tags:
+            if "retinol" in ings:
                 score = -999  # 추천 목록에서 즉시 탈락시킴
                 evidences.append(f"현재 시간({self.hour}시) → 주간 레티놀 사용 금지(-999점)")
 
@@ -271,7 +272,7 @@ class SkinCareAdvisor:
         if is_sensitive:
             # 고농도 비타민C(Ascorbic Acid), 강한 산(AHA/BHA) 등 자극 성분 체크
             # config.py의 blacklist 활용 가능하지만, 여기서는 직관적으로 태그 체크
-            if any(t in tags for t in ["strong_acid", "high_alcohol"]):
+            if any(i in ings for i in ["aha", "bha", "retinol"]):
                 score = -999
                 evidences.append("민감성 피부 → 자극 성분 제외(-999점)")
 
@@ -324,19 +325,33 @@ class SkinCareAdvisor:
         for item in top3_products:
             name = f"**{item['name']}**"
             cat = item["category"]
-            tags = str(item.get("tags", []))
+            tags = item.get("tags", []) # 이미 TAG_KO로 변환된 한글 태그일 수 있음. 주의.
+            # _format_product_result에서 tags를 한글로 변환해서 리턴함.
+            # 하지만 top3_products는 _format_product_result의 결과물임.
+            # 따라서 여기서 tags는 ["진정", "보습"] 같은 한글 리스트임.
+            # 로직을 한글 태그 기준으로 바꾸거나, 원본 데이터를 넘겨야 함.
+            # recommend_products에서 top3를 만들 때 _format_product_result를 호출함.
+            # generate_routine_text는 그 결과를 받음.
+            # 따라서 여기서는 한글 태그를 체크해야 함!
+            # 혹은 recommend_products에서 원본 product 객체를 같이 넘겨주는 게 좋음.
+            # 하지만 지금 구조상 top3_products는 이미 포맷팅된 dict임.
+            
+            # 임시 해결: 한글 태그 텍스트로 체크 (TAG_KO 역매핑은 복잡함)
+            # "진정" -> soothing, "보습" -> moisturizing
+            
+            tags_str = str(tags)
 
             # 선크림
-            if "선크림" in cat or "SPF" in tags:
+            if "Sunscreen" in cat or "자외선" in tags_str:
                 if not slots["sun"]: slots["sun"] = name
             # 레티놀 (밤 전용)
-            elif "레티놀" in tags or "retinol" in tags or "안티에이징" in tags:
+            elif "레티노이드" in tags_str or "탄력" in tags_str or "안티에이징" in tags_str:
                 if not slots["retinol"]: slots["retinol"] = name
             # 진정/트러블
-            elif any(x in tags for x in ["진정", "시카", "트러블", "BHA"]):
+            elif any(x in tags_str for x in ["진정", "시카", "트러블", "티트리"]):
                 if not slots["relief"]: slots["relief"] = name
             # 보습
-            elif any(x in tags for x in ["보습", "장벽", "히알루론산", "크림"]):
+            elif any(x in tags_str for x in ["보습", "장벽", "건성", "수분"]):
                 if not slots["moist"]: slots["moist"] = name
 
         # ---------------------------------------------------------

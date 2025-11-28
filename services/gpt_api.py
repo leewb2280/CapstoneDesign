@@ -16,7 +16,7 @@ from openai import OpenAI
 from dotenv import load_dotenv
 
 # 설정 파일 로드
-from .config import GPT_MODEL_NAME, GPT_SYSTEM_PROMPT
+from .config import GPT_MODEL_NAME, GPT_SYSTEM_PROMPT, STANDARD_TAGS, STANDARD_INGREDIENTS
 
 # 로깅 설정
 logging.basicConfig(level=logging.INFO)
@@ -91,12 +91,23 @@ def analyze_batch_product_tags(batch_data: list) -> dict:
 
     # 프롬프트 구성을 위한 문자열 변환
     items_str = "\n".join([f"- ID:{p[0]} Name:{p[1]} Cat:{p[2]}" for p in batch_data])
+    
+    # 허용된 태그/성분 리스트 문자열 변환
+    allowed_tags_str = ", ".join(STANDARD_TAGS)
+    allowed_ings_str = ", ".join(STANDARD_INGREDIENTS)
 
     prompt = f"""
     Analyze these skincare products.
     {items_str}
 
-    Task: Extract 'ingredients' and select 'tags' (e.g., soothing, moisturizing, anti-aging, oily-skin, dry-skin, sensitive, bha, retinol, vitamin).
+    Task: Extract 'ingredients' and select 'tags' for each product.
+    
+    IMPORTANT RULES:
+    1. You MUST ONLY use tags from this allowed list: [{allowed_tags_str}]
+    2. You MUST ONLY use ingredients from this allowed list: [{allowed_ings_str}]
+    3. If a product has no relevant tags or ingredients from the list, return empty arrays.
+    4. Do not invent new tags or ingredients.
+    
     Return JSON: {{ "ID": {{"tags": [], "ingredients": []}} }}
     """
 

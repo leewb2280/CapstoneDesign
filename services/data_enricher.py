@@ -13,7 +13,7 @@ import logging
 import psycopg2
 from dotenv import load_dotenv
 
-from .config import DB_CONFIG
+from .config import DB_CONFIG, STANDARD_TAGS, STANDARD_INGREDIENTS
 from .gpt_api import analyze_batch_product_tags
 
 # 로깅 설정
@@ -28,25 +28,26 @@ BATCH_SIZE = 50
 # ==============================================================================
 # [PART 1] Regex 패턴 정의 (단어장)
 # ==============================================================================
+# config.py의 STANDARD_TAGS, STANDARD_INGREDIENTS에 정의된 키로 매핑합니다.
 PATTERNS = {
     "ingredients": {
-        "tea tree": r"티트리|tea\s?tree",
+        "teatree": r"티트리|tea\s?tree",
         "cica": r"시카|병풀|센텔라|마데카|cica|centella",
         "heartleaf": r"어성초|약모밀|heartleaf",
         "mugwort": r"쑥|사철쑥|인진쑥|mugwort|artemisia",
-        "hyaluronic acid": r"히알루론|하이드라|수분|hyaluronic",
+        "hyaluronic": r"히알루론|하이드라|수분|hyaluronic",
         "ceramide": r"세라마이드|세라|ceramide",
         "panthenol": r"판테놀|panthenol",
         "propolis": r"프로폴리스|꿀|로얄젤리|propolis",
-        "vitamin c": r"비타민|비타민C|잡티|청귤|유자|vita",
+        "vitamin-c": r"비타민|비타민C|잡티|청귤|유자|vita",
         "niacinamide": r"나이아신|미백|niacin",
         "retinol": r"레티놀|레티날|retinol|retinal",
         "collagen": r"콜라겐|탄력|collagen",
         "bha": r"바하|살리실산|bha|salicylic",
         "aha": r"아하|글라이콜릭|aha|glycolic",
-        "birch": r"자작나무|birch",
-        "rice": r"쌀|라이스|rice",
-        "galactomyces": r"갈락토|발효|galacto"
+        "shea-butter": r"쉐어버터|shea\s?butter",
+        "azelaic": r"아젤라익|azelaic",
+        "pha": r"파하|pha"
     },
     "tags": {
         "soothing": r"진정|수딩|쿨링|시카|티트리|어성초",
@@ -56,16 +57,26 @@ PATTERNS = {
         "anti-aging": r"주름|탄력|안티에이징|리프팅|노화|레티놀",
         "acne-care": r"트러블|여드름|아크네|진정|티트리",
         "pore-care": r"모공|피지|블랙헤드",
-        "exfoliation": r"각질|필링|스크럽|바하|아하",
-        "sun-care": r"선크림|선블록|선스틱|자차",
-        "spf50": r"spf50|50\+|pa\+\+\+\+",
-        "toner-pad": r"패드|pad",
-        "cleansing": r"클렌징|폼|오일|리무버|세안제",
-        "sensitive": r"민감|저자극|순한|약산성",
+        "sebum-care": r"피지|개기름|산뜻",
+        "spf": r"선크림|선블록|선스틱|자차|spf|pa\+",
+        "hydration": r"수분|hydration",
+        "firming": r"탄력|firming",
+        "sensitive-skin": r"민감|저자극|순한|약산성",
         "oily-skin": r"지성|피지|개기름|산뜻|가벼운",
         "dry-skin": r"건성|속건조|당김",
         "vegan": r"비건|vegan",
-        "dermatology": r"닥터|더마|피부과"
+        "low-ph": r"약산성|low\s?ph",
+        "hypoallergenic": r"저자극|hypoallergenic",
+        "fragrance-free": r"무향|fragrance\s?free",
+        "alcohol-free": r"무알콜|alcohol\s?free",
+        "light": r"가벼운|산뜻|light",
+        "rich": r"영양|rich|꾸덕",
+        "gel": r"젤|gel",
+        "cream": r"크림|cream",
+        "watery": r"워터|watery|물",
+        "oil": r"오일|oil",
+        "balm": r"밤|balm",
+        "fresh": r"상쾌|fresh"
     }
 }
 
@@ -77,10 +88,12 @@ def analyze_text_local(text):
     text_lower = text.lower()
 
     for ing_name, pattern in PATTERNS["ingredients"].items():
-        if re.search(pattern, text_lower): found_ings.add(ing_name)
+        if ing_name in STANDARD_INGREDIENTS and re.search(pattern, text_lower):
+            found_ings.add(ing_name)
 
     for tag_name, pattern in PATTERNS["tags"].items():
-        if re.search(pattern, text_lower): found_tags.add(tag_name)
+        if tag_name in STANDARD_TAGS and re.search(pattern, text_lower):
+            found_tags.add(tag_name)
 
     return list(found_ings), list(found_tags)
 
