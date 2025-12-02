@@ -40,7 +40,7 @@ sudo raspi-config
 
 ```bash
 # libcamera (카메라), libatlas (Numpy 가속), PostgreSQL(DB) 설치
-sudo apt install -y python3-tk libcamera-apps libopenblas-dev postgresql
+sudo apt install -y python3-tk libcamera-apps libopenblas-dev postgresql libcap-dev
 ```
 
 ### 2-4. 하드웨어 접근 권한 설정
