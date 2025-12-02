@@ -166,13 +166,11 @@ async def analyze_skin_endpoint(
     복잡한 로직은 모두 skin_analyzer로 위임하고, 여기서는 호출만 담당합니다.
     """
     try:
-        # 한 줄로 끝!
         result = await process_skin_analysis(user_id, file, moisture, sebum)
         return result
 
     except Exception as e:
         logger.error(f"분석 요청 처리 중 오류: {e}")
-        # 에러 메시지를 예쁘게 포장해서 반환
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -268,12 +266,17 @@ async def get_stats_endpoint(user_id: str, start_date: str, end_date: str):
 # 7. Admin (관리자 기능)
 # ==============================================================================
 
-@app.post("/update-products", tags=["Admin"])
-async def update_products_endpoint(background_tasks: BackgroundTasks, secret_key: str = Form(...)):
-    if secret_key != "admin1234":
-        raise HTTPException(status_code=401, detail="Unauthorized")
+@app.post("/products/update", tags=["Products"])
+async def update_products_endpoint(background_tasks: BackgroundTasks):
+    """
+    [제품 정보 업데이트]
+    크롤링 또는 데이터 갱신 작업을 백그라운드에서 실행합니다.
+    (일반 사용자도 요청 가능하도록 권한 해제됨)
+    """
+    # 백그라운드에서 크롤링/업데이트 실행 (오래 걸리므로)
     background_tasks.add_task(run_data_collection)
-    return {"message": "Update started in background", "status": "processing"}
+
+    return {"status": "success", "message": "제품 정보 업데이트가 시작되었습니다. (잠시 후 반영됩니다)"}
 
 
 # ==============================================================================
@@ -296,15 +299,16 @@ if __name__ == "__main__":
     import time
 
     # 1. UI(화면)를 별도 프로세스로 실행합니다.
-    # main.py가 있는 폴더에 ui.py가 있어야 합니다.
-    print("🖥️ GUI 화면을 시작합니다...")
-    ui_process = subprocess.Popen([sys.executable, "ui.py"])
+    ui_path = os.path.join("services", "ui.py")
 
-    # 2. 서버가 켜질 때까지 잠시 대기 (선택 사항)
+    print("🖥️ GUI 화면을 시작합니다...")
+    ui_process = subprocess.Popen([sys.executable, ui_path])
+
+    # 2. 서버가 켜질 때까지 잠시 대기
     time.sleep(2)
 
     try:
-        # 3. 서버 실행 (이 코드가 실행되는 동안 서버가 돌아갑니다)
+        # 3. 서버 실행
         print("🚀 API 서버를 시작합니다...")
         uvicorn.run(app, host="0.0.0.0", port=8000)
 
@@ -312,7 +316,7 @@ if __name__ == "__main__":
         print("종료 요청 받음.")
 
     finally:
-        # 4. 서버가 꺼지면 UI도 같이 꺼줍니다 (깔끔한 종료)
+        # 4. 서버가 꺼지면 UI도 같이 꺼줌
         if ui_process.poll() is None:  # 아직 켜져 있다면
             ui_process.terminate()
             print("✅ GUI 화면도 종료되었습니다.")

@@ -381,3 +381,24 @@ async function saveSettings() {
         alert("서버 오류");
     }
 }
+
+// --- [기능 6] 제품 업데이트 요청 ---
+async function triggerProductUpdate() {
+    if(!confirm("제품 정보를 최신으로 업데이트 하시겠습니까?\n(시간이 조금 걸릴 수 있습니다)")) return;
+
+    try {
+        const res = await fetch(`${BASE_URL}/products/update`, {
+            method: 'POST'
+        });
+        const data = await res.json();
+
+        if (data.status === 'success') {
+            alert("✅ " + data.message);
+        } else {
+            alert("요청 실패: " + data.detail);
+        }
+    } catch (e) {
+        console.error(e);
+        alert("서버 통신 오류");
+    }
+}
