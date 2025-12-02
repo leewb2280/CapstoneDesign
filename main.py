@@ -9,6 +9,7 @@ import os
 import logging
 from typing import Optional
 
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Body, BackgroundTasks
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -21,6 +22,7 @@ from pydantic import BaseModel
 # ---------------------------------------------------------
 from services.config import *
 from core.utils import (
+    init_db,
     register_user_db,
     authenticate_user_db,
     check_user_exists_db,
@@ -41,11 +43,32 @@ logger = logging.getLogger(__name__)
 UPLOAD_DIR = "temp_uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-# FastAPI 앱 초기화
+
+# ---------------------------------------------------------
+# [Lifespan 설정] 시작과 종료를 관리하는 함수
+# ---------------------------------------------------------
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # [시작 시 실행]
+    print("🔄 서버 시작: DB 테이블을 점검하고 생성합니다...")
+    init_db()  # 여기서 DB 초기화 실행
+    print("✅ 서버 시작 완료: DB 초기화 끝")
+
+    yield  # 👈 이 yield를 기준으로 위는 '시작', 아래는 '종료' 로직입니다.
+
+    # [종료 시 실행]
+    print("👋 서버 종료: 리소스를 정리합니다.")
+    # (나중에 DB 연결 종료나 임시 파일 삭제 등이 필요하면 여기에 작성)
+
+
+# ---------------------------------------------------------
+# [App 생성] lifespan 파라미터 적용
+# ---------------------------------------------------------
 app = FastAPI(
     title="AI Skin Advisor API",
     description="피부 분석 및 맞춤형 화장품 추천 시스템",
-    version="2.0.0"  # 통합 버전 업데이트
+    version="2.0.0",
+    lifespan=lifespan
 )
 
 # ---------------------------------------------------------
@@ -206,7 +229,7 @@ async def recommend_endpoint(req: RecommendationRequest):
 
 
 # ==============================================================================
-# 6. History & Statistics (기록 및 통계) - [앱/웹 통합 핵심]
+# 6. History & Statistics (기록 및 통계)
 # ==============================================================================
 
 @app.get("/history/search", tags=["History"])
@@ -263,7 +286,7 @@ async def get_stats_endpoint(user_id: str, start_date: str, end_date: str):
 
 
 # ==============================================================================
-# 7. Admin (관리자 기능)
+# 7. 제품 업데이트 기능
 # ==============================================================================
 
 @app.post("/products/update", tags=["Products"])

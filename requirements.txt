@@ -18,3 +18,4 @@ pandas                  # 데이터 수집/처리 시 필요할 수 있음
 # --- [라즈베리파이 하드웨어] ---
 spidev                  # SPI 통신 (센서)
 RPi.GPIO                # GPIO 제어
+picamera2               # 카메라 라이브러리

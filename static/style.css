@@ -6,7 +6,6 @@
 }
 
 body {
-    /* 🚨 수정됨: 빨간색(!important) 삭제하고 원래 디자인으로 복구 */
     font-family: 'Pretendard', 'Noto Sans KR', sans-serif;
     background-color: var(--bg-color);
     margin: 0; padding: 0;

@@ -179,10 +179,11 @@ function showDetail(dateKey) {
         <div class="score-grid">
             <div class="score-item"><span class="score-label">💧 수분</span><span class="score-value">${data.scores.moisture}%</span></div>
             <div class="score-item"><span class="score-label">✨ 유분</span><span class="score-value">${data.scores.sebum}%</span></div>
-            <div class="score-item"><span class="score-label">👃 모공</span><span class="score-value">${data.scores.pore}</span></div>
+            <div class="score-item"><span class="score-label">🚨 여드름</span><span class="score-value">${data.scores.acne}</span></div>
             <div class="score-item"><span class="score-label">🧬 주름</span><span class="score-value">${data.scores.wrinkles}</span></div>
-            <div class="score-item"><span class="score-label">🚨 트러블</span><span class="score-value">${data.scores.acne}</span></div>
+            <div class="score-item"><span class="score-label">👃 모공</span><span class="score-value">${data.scores.pore}</span></div>
             <div class="score-item"><span class="score-label">😡 홍조</span><span class="score-value">${data.scores.redness}</span></div>
+            <div class="score-item"><span class="score-label">색소침착</span><span class="score-value">${data.scores.pigmentation}</span></div>
         </div>
     `;
 

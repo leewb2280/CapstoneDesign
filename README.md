@@ -63,7 +63,7 @@ cd CapstoneDesign
 시스템 파이썬을 보호하기 위해 가상환경을 사용합니다.
 ```bash
 # 가상환경 생성
-python3 -m venv venv
+python3 -m venv venv --system-site-packages
 
 # 가상환경 활성화
 source venv/bin/activate
@@ -127,16 +127,12 @@ python main.py
 ```
 서버가 정상 실행되면 밑의 주소에서 접속 가능합니다.
 
-내부:
-
-테스트 사이트: http://localhost:8000
-
+내부:<br>
+테스트 사이트: http://localhost:8000<br>
 코드 확인 사이트: http://localhost:8000/docs
 
-외부:
-
-테스트 사이트: http://IP_입력:8000
-
+외부:<br>
+테스트 사이트: http://IP_입력:8000 <br>
 코드 확인 사이트: http://IP_입력:8000/docs
 
 이후 원활한 작동을 위해 데이터 수집을 먼저 해주십시오.

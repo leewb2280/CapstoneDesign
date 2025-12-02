@@ -7,20 +7,15 @@ import sys
 
 
 # -----------------------------------------------------------
-# [1] 경로 설정 (ImportError 방지용)
+# [1] 경로 설정
 # -----------------------------------------------------------
 
 current_dir = os.path.dirname(os.path.abspath(__file__)) # services 폴더
-root_dir = os.path.dirname(current_dir)                # CapstoneDesign 폴더
+root_dir = os.path.dirname(current_dir)                  # CapstoneDesign 폴더
 
 # 시스템 경로에 루트 폴더를 추가합니다.
 sys.path.append(root_dir)
 
-# -----------------------------------------------------------
-# [2] 모듈 가져오기 (절대 경로 사용)
-# -----------------------------------------------------------
-
-# 이제 루트 경로가 추가되었으므로 'services.'를 붙여서 절대 경로로 가져옵니다.
 from services.skin_analyzer import process_skin_analysis
 
 
@@ -41,27 +36,6 @@ def draw_gauge(canvas, oil, moisture):
     canvas.create_arc(190, 40, 310, 160, start=90, extent=-moisture * 3.6, outline="#55ff55", width=20, style="arc")
     canvas.create_text(250, 100, text=f"수분\n{int(moisture)}%", fill="black", font=("Arial", 12, "bold"))
 
-
-def get_recommendation(scores):
-    """점수에 따른 간단 추천 멘트"""
-    # 점수가 낮은(안 좋은) 순서대로 우선순위 추천
-    if scores['moisture'] < 30: return "수분 크림 (보습 강화 시급)"
-    if scores['acne'] > 40: return "트러블 케어 앰플 (진정)"
-    if scores['redness'] > 40: return "쿨링 시트팩 (홍조 완화)"
-    if scores['wrinkles'] > 40: return "레티놀 세럼 (주름 개선)"
-    return "현재 상태 양호 (유수분 밸런스 유지)"
-
-
-def get_status_text(score):
-    """0~100점 점수를 텍스트로 변환"""
-    if score < 20:
-        return "좋음"
-    elif score < 50:
-        return "보통"
-    else:
-        return "관리 필요"  # 점수가 높을수록 안 좋은 항목(트러블 등) 가정
-
-
 # -----------------------------------------------------------
 # [3] 측정 스레드 (비동기 처리)
 # -----------------------------------------------------------
@@ -72,8 +46,6 @@ def run_measurement_thread():
 
     try:
         # 2. skin_analyzer의 통합 함수 호출
-        # (센서 측정 + 카메라 촬영 + GPT 분석 + DB 저장이 한방에 됨)
-
         # UI에서는 user_id를 고정하거나 입력받아야 함 (여기선 demo_user로 가정)
         user_id = "demo_user_kiosk"
 
@@ -89,11 +61,12 @@ def run_measurement_thread():
         ui_data = {
             "oil": final_scores["sebum"],
             "moisture": final_scores["moisture"],
-            "score": total_score,
-            # GPT는 0(좋음)~100(나쁨) 점수를 줌
-            "trouble_text": f"{get_status_text(final_scores['acne'])} ({final_scores['acne']}점)",
-            "redness_text": f"{get_status_text(final_scores['redness'])} ({final_scores['redness']}점)",
-            "reco": get_recommendation(final_scores)
+            "acne": final_scores["acne"],
+            "wrinkles": final_scores["wrinkles"],
+            "pores": final_scores["pores"],
+            "redness": final_scores["redness"],
+            "pigmentation": final_scores["pigmentation"],
+            "score": total_score
         }
 
         print(f"✅ 분석 완료: {ui_data}")
@@ -112,8 +85,11 @@ def update_ui(data):
         draw_gauge(canvas, data['oil'], data['moisture'])
 
         score_label.config(text=f"종합 점수: {data['score']}점")
-        trouble_label.config(text=f"트러블: {data['trouble_text']}")
-        redness_label.config(text=f"홍조: {data['redness_text']}")
+        acne_label.config(text=f"여드름: {data['acne']}")
+        wrinkles_label.config(text=f"주름: {data['wrinkles']}")
+        pores_label.config(text=f"모공: {data['pores']}")
+        redness_label.config(text=f"홍조: {data['redness']}")
+        pigmentation_label.config(text=f"색소침착: {data['pigmentation']}")
         recommendation_label.config(text=data['reco'])
     else:
         recommendation_label.config(text="측정 실패. 다시 시도해주세요.")
@@ -134,8 +110,8 @@ root.title("AI SkinCare Kiosk")
 
 # 전체화면 설정 (라즈베리파이용)
 # root.attributes('-fullscreen', True)
-# 테스트용으로는 창 크기 지정
-root.geometry("480x800")
+#  테스트용으로는 창 크기 지정
+# root.geometry("480x800")
 
 root.configure(bg="white")
 root.bind("<Escape>", lambda e: root.destroy())  # ESC 누르면 종료
@@ -156,11 +132,20 @@ score_label.pack(pady=5)
 state_frame = tk.Frame(root, bg="white")
 state_frame.pack(pady=10)
 
-trouble_label = tk.Label(state_frame, text="트러블: --", font=("Arial", 14), fg="#555", bg="white")
-trouble_label.pack(anchor="w", padx=20)
+acne_label = tk.Label(state_frame, text="여드름: --", font=("Arial", 14), fg="#555", bg="white")
+acne_label.pack(side=tk.LEFT, padx=20)
+
+wrinkles_label = tk.Label(state_frame, text="주름: --", font=("Arial", 14), fg="#555", bg="white")
+wrinkles_label.pack(side=tk.LEFT, padx=20)
+
+pores_label = tk.Label(state_frame, text="모공: --", font=("Arial", 14), fg="#555", bg="white")
+pores_label.pack(side=tk.LEFT, padx=20)
 
 redness_label = tk.Label(state_frame, text="홍조: --", font=("Arial", 14), fg="#555", bg="white")
-redness_label.pack(anchor="w", padx=20)
+redness_label.pack(side=tk.LEFT, padx=20)
+
+pigmentation_label = tk.Label(state_frame, text="색소침착: --", font=("Arial", 14), fg="#555", bg="white")
+pigmentation_label.pack(side=tk.LEFT, padx=20)
 
 # --- 추천 멘트 ---
 reco_title_label = tk.Label(root, text="[ AI 솔루션 ]", font=("Arial", 14, "bold"), fg="#d9534f", bg="white")
@@ -174,7 +159,7 @@ recommendation_label.pack(pady=5)
 measure_button = tk.Button(root, text="피부 측정하기",
                            font=("Arial", 16, "bold"),
                            bg="#00aaff", fg="white", relief="flat",
-                           height=2,
+                           pady=2,
                            command=start_measurement)
 measure_button.pack(side="bottom", pady=30, padx=20, fill="x")
 

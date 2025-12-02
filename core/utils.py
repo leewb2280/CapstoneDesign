@@ -194,6 +194,123 @@ def predict_trouble_proba(payload: dict) -> dict:
 # 3. 데이터베이스 (PostgreSQL)
 # ==============================================================================
 
+def init_db():
+    """
+    [DB 초기화 통합 함수]
+    서버 시작 시 CSV 파일 구조에 맞춰 모든 테이블을 안전하게 생성합니다.
+    """
+    try:
+        conn = psycopg2.connect(**DB_CONFIG)
+        cursor = conn.cursor()
+
+        # ---------------------------------------------------------
+        # 1. users (사용자)
+        # ---------------------------------------------------------
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                user_id VARCHAR(50) PRIMARY KEY,
+                password TEXT NOT NULL,
+                name TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+
+        # ---------------------------------------------------------
+        # 2. user_profiles (사용자 상세 정보)
+        # ---------------------------------------------------------
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS user_profiles (
+                user_id VARCHAR(50) PRIMARY KEY,
+                age INTEGER,
+                sleep_hours_7d REAL,
+                water_intake_ml INTEGER,
+                wash_freq_per_day INTEGER,
+                wash_temp TEXT,
+                sensitivity TEXT,
+                pref_texture TEXT,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT fk_user FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE
+            );
+        """)
+
+        # ---------------------------------------------------------
+        # 3. products (제품 정보)
+        # ---------------------------------------------------------
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS products (
+                id SERIAL PRIMARY KEY,
+                name TEXT NOT NULL,
+                price INTEGER,
+                brand TEXT,            -- 브랜드 없는 경우 대비 (NULL 허용)
+                official_category TEXT,
+                tags TEXT,
+                featured_ingredients TEXT,
+                url TEXT,
+                image_url TEXT,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- CSV 호환용 추가
+            );
+        """)
+
+        # ---------------------------------------------------------
+        # 4. analysis_log (피부 분석 기록)
+        # ---------------------------------------------------------
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS analysis_log (
+                id SERIAL PRIMARY KEY,
+                user_id VARCHAR(50),
+                acne INTEGER,
+                wrinkles INTEGER,
+                pores INTEGER,
+                pigmentation INTEGER,
+                redness INTEGER,
+                moisture INTEGER,
+                sebum INTEGER,
+                image_path TEXT,
+                total_score INTEGER,   -- 종합 점수 (NULL 허용)
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+
+        # ---------------------------------------------------------
+        # 5. recommendation_log (추천 기록)
+        # ---------------------------------------------------------
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS recommendation_log (
+                id SERIAL PRIMARY KEY,
+                user_id VARCHAR(50),
+                analysis_id INTEGER,
+                skin_age REAL,
+                top3_products TEXT,
+                routine_am TEXT,
+                routine_pm TEXT,
+                trouble_prob REAL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+
+        # ---------------------------------------------------------
+        # 6. training_log (AI 학습용 데이터)
+        # ---------------------------------------------------------
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS training_log (
+                id SERIAL PRIMARY KEY,
+                user_id VARCHAR(50),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                redness REAL, sebum REAL, moisture REAL, acne REAL,
+                uv REAL, humidity REAL, temperature REAL,
+                sleep_hours REAL, water_intake INTEGER,
+                wash_freq REAL, is_hot_wash INTEGER, is_sensitive INTEGER
+            );
+        """)
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+        logger.info("✅ 모든 DB 테이블이 CSV 구조에 맞춰 정상적으로 초기화되었습니다.")
+
+    except Exception as e:
+        logger.error(f"❌ DB 초기화 중 오류 발생: {e}")
+
 def load_products_from_db() -> list:
     """
     DB의 'products' 테이블에서 모든 제품 정보를 가져옵니다.
@@ -266,7 +383,7 @@ def get_skin_data_by_id(analysis_id: int) -> dict:
         if not row:
             return None
 
-        row_id, acne, wrinkles, pores, pigm, redness, moisture, sebum, created_at = row
+        row_id, acne, wrinkles, pores, pigmentation, redness, moisture, sebum, created_at = row
 
         # 분석 로직에서 사용하기 편한 Dictionary 형태로 반환
         return {
@@ -274,7 +391,7 @@ def get_skin_data_by_id(analysis_id: int) -> dict:
             "acne": acne,
             "wrinkle": wrinkles,
             "pore": pores,
-            "pigmentation": pigm,
+            "pigmentation": pigmentation,
             "redness": redness,
             "sebum": sebum,
             "moisture": moisture,
@@ -294,21 +411,6 @@ def save_recommendation_to_db(user_id: str, analysis_id: int, skin_age: float,
     try:
         conn = psycopg2.connect(**DB_CONFIG)
         cursor = conn.cursor()
-
-        # 테이블이 없을 경우 생성 (안전장치)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS recommendation_log (
-                id SERIAL PRIMARY KEY,
-                user_id VARCHAR(50),
-                analysis_id INTEGER,
-                skin_age REAL,
-                top3_products TEXT,
-                routine_am TEXT,
-                routine_pm TEXT,
-                trouble_prob REAL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-        """)
 
         # 복잡한 데이터 구조(List/Dict)는 JSON 문자열로 변환하여 저장
         products_json = json.dumps(rec_result["top3"], ensure_ascii=False)
@@ -347,48 +449,8 @@ def save_recommendation_to_db(user_id: str, analysis_id: int, skin_age: float,
 # 4. 사용자 관리 및 기록 조회 (User & History)
 # ==============================================================================
 
-def create_user_table():
-    """사용자 정보(아이디/비밀번호)를 저장할 테이블 생성"""
-    try:
-        conn = psycopg2.connect(**DB_CONFIG)
-        cursor = conn.cursor()
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS users (
-                user_id VARCHAR(50) PRIMARY KEY,
-                password TEXT NOT NULL,
-                name TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-        """)
 
-        # [추가] 2. 사용자 상세 프로필 테이블 (6가지 항목)
-        # user_id를 Foreign Key로 사용하여 users 테이블과 연결
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS user_profiles (
-                user_id VARCHAR(50) PRIMARY KEY,
-                age INTEGER,
-                sleep_hours_7d REAL,
-                water_intake_ml INTEGER,
-                wash_freq_per_day INTEGER,
-                wash_temp TEXT,
-                sensitivity TEXT,
-                pref_texture TEXT,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                CONSTRAINT fk_user
-                    FOREIGN KEY(user_id) 
-                    REFERENCES users(user_id)
-                    ON DELETE CASCADE
-            );
-        """)
-
-        conn.commit()
-        cursor.close()
-        conn.close()
-    except Exception as e:
-        logger.error(f"사용자 테이블 생성 실패: {e}")
-
-
-# [신규 함수] 프로필 저장/업데이트 (Upsert)
+# 프로필 저장/업데이트 (Upsert)
 def save_user_profile_db(user_id, data: dict):
     try:
         conn = psycopg2.connect(**DB_CONFIG)
@@ -569,7 +631,7 @@ def search_skin_history_db(
                         a.moisture, a.sebum, a.redness, a.pores, a.wrinkles, a.acne, a.pigmentation,
                         a.image_path, 
                         r.skin_age,
-                        r.top3_products, r.routine_am, r.routine_pm  -- 👈 추가된 부분
+                        r.top3_products, r.routine_am, r.routine_pm
                     {base_query}
                     ORDER BY a.created_at DESC
                     LIMIT %s OFFSET %s
@@ -614,7 +676,7 @@ def search_skin_history_db(
                 "skin_age": r[10] if r[10] else 0,
                 "overall_score": overall_score,
 
-                # ⭐️ 앱으로 보낼 추가 정보
+                # 앱으로 보낼 추가 정보
                 "products": top3,
                 "routine": {
                     "am": routine_am,
@@ -729,8 +791,8 @@ def save_analysis_log_db(user_id, file_path, scores, total_score=0): # 👈 tota
         params = (
             user_id, file_path,
             scores['moisture'], scores['sebum'], scores['redness'],
-            scores['pores'], scores['wrinkles'], scores['acne'], scores.get('pigmentation', 0),
-            total_score # 👈 여기에 점수 값 전달
+            scores['pores'], scores['wrinkles'], scores['acne'], scores['pigmentation'],
+            total_score
         )
 
         cursor.execute(insert_sql, params)
@@ -758,19 +820,6 @@ def save_training_log_db(user_id: str, payload: dict):
     try:
         conn = psycopg2.connect(**DB_CONFIG)
         cursor = conn.cursor()
-
-        # 1. 학습 전용 테이블이 없으면 생성
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS training_log (
-                id SERIAL PRIMARY KEY,
-                user_id VARCHAR(50),
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                redness REAL, sebum REAL, moisture REAL, acne REAL, -- 피부
-                uv REAL, humidity REAL, temperature REAL,           -- 환경
-                sleep_hours REAL, water_intake INTEGER,             -- 생활1
-                wash_freq REAL, is_hot_wash INTEGER, is_sensitive INTEGER -- 생활2
-            );
-        """)
 
         # 2. 데이터 추출
         cam = payload["camera"]
@@ -831,7 +880,6 @@ def train_model_from_db():
             return {"status": "skipped", "msg": "데이터 부족"}
 
         # 2. 라벨링 (Labeling): 2일 뒤 홍조가 악화되었는가?
-        # final_skin.py의 로직(build_trouble_dataset)을 Pandas로 구현
         X = []
         y = []
 
