@@ -107,7 +107,11 @@ async def read_index():
 @app.post("/signup", tags=["Auth"])
 async def signup(req: SignupRequest):
     if register_user_db(req.user_id, req.password, req.name):
-        return {"message": "회원가입 성공"}
+        return {
+            "success": True,
+            "message": "회원가입 성공",
+            "token": "test_token"
+        }
     else:
         raise HTTPException(status_code=400, detail="이미 존재하는 아이디입니다.")
 
@@ -116,7 +120,12 @@ async def signup(req: SignupRequest):
 async def login(req: LoginRequest):
     user_info = authenticate_user_db(req.user_id, req.password)
     if user_info:
-        return {"message": "로그인 성공", "user_info": user_info}
+        return {
+            "success": True,
+            "message":"로그인 성공",
+            "token":"test_token",
+            "user_info": user_info
+        }
     else:
         raise HTTPException(status_code=401, detail="아이디 또는 비밀번호가 틀렸습니다.")
 
@@ -267,9 +276,43 @@ async def update_products_endpoint(background_tasks: BackgroundTasks, secret_key
     return {"message": "Update started in background", "status": "processing"}
 
 
-# 서버 실행 (직접 실행 시)
+# ==============================================================================
+# 8. 웹 사이트 연결 (정적 파일 서빙)
+# ==============================================================================
+
+if os.path.exists("static"):
+    app.mount("/", StaticFiles(directory="static", html=True), name="static")
+else:
+    print("⚠️ 'static' 폴더가 없습니다. 웹 대시보드를 보려면 폴더를 생성하고 파일을 넣으세요.")
+
+
+# ==============================================================================
+# 9. 메인 실행부 (서버 + UI 동시 실행)
+# ==============================================================================
 if __name__ == "__main__":
     import uvicorn
+    import subprocess
+    import sys
+    import time
 
-    # 모든 IP 접속 허용 (0.0.0.0)
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    # 1. UI(화면)를 별도 프로세스로 실행합니다.
+    # main.py가 있는 폴더에 ui.py가 있어야 합니다.
+    print("🖥️ GUI 화면을 시작합니다...")
+    ui_process = subprocess.Popen([sys.executable, "ui.py"])
+
+    # 2. 서버가 켜질 때까지 잠시 대기 (선택 사항)
+    time.sleep(2)
+
+    try:
+        # 3. 서버 실행 (이 코드가 실행되는 동안 서버가 돌아갑니다)
+        print("🚀 API 서버를 시작합니다...")
+        uvicorn.run(app, host="0.0.0.0", port=8000)
+
+    except KeyboardInterrupt:
+        print("종료 요청 받음.")
+
+    finally:
+        # 4. 서버가 꺼지면 UI도 같이 꺼줍니다 (깔끔한 종료)
+        if ui_process.poll() is None:  # 아직 켜져 있다면
+            ui_process.terminate()
+            print("✅ GUI 화면도 종료되었습니다.")

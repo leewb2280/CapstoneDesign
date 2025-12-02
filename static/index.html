@@ -1,1080 +1,176 @@
 <!DOCTYPE html>
 <html lang="ko">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Skin Advisor</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --primary: #4f46e5;
-            --primary-hover: #4338ca;
-            --bg: #f3f4f6;
-            --card-bg: #ffffff;
-            --text: #1f2937;
-            --text-light: #6b7280;
-            --border: #e5e7eb;
-            --success: #10b981;
-            --danger: #ef4444;
-        }
+    <title>SkinMirror PC Dashboard</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: var(--bg);
-            color: var(--text);
-            margin: 0;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            min-height: 100vh;
-        }
+    <link rel="icon" href="data:,">
 
-        .container {
-            width: 100%;
-            max-width: 800px;
-        }
-
-        .card {
-            background: var(--card-bg);
-            border-radius: 16px;
-            padding: 24px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-            margin-bottom: 20px;
-        }
-
-        h2, h3, h4 {
-            margin-top: 0;
-            color: #111827;
-        }
-
-        input, select {
-            width: 100%;
-            padding: 10px;
-            margin: 8px 0 16px;
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            box-sizing: border-box;
-            font-size: 16px;
-        }
-
-        /* [기본값 스타일] 회색 기울임꼴 */
-        .default-value {
-            color: #9ca3af !important;
-            font-style: italic;
-        }
-
-        /* 입력 활성화 시 검은색 */
-        input:focus, select:focus,
-        input:not(.default-value), select:not(.default-value) {
-            color: #1f2937 !important;
-            font-style: normal;
-        }
-
-        button {
-            width: 100%;
-            padding: 12px;
-            border: none;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background 0.2s;
-            color: white;
-        }
-
-        .btn-primary { background-color: var(--primary); }
-        .btn-primary:hover { background-color: var(--primary-hover); }
-        .btn-success { background-color: var(--success); }
-        .btn-danger { background-color: var(--danger); }
-
-        .btn-sm {
-            padding: 6px 12px;
-            font-size: 14px;
-            width: auto;
-        }
-
-        .btn-logout {
-            background: transparent;
-            color: var(--text-light);
-            border: 1px solid var(--border);
-            width: auto;
-            padding: 6px 12px;
-        }
-
-        .hidden { display: none !important; }
-
-        .grid-2 {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 16px;
-        }
-
-        .auth-container {
-            max-width: 400px;
-            margin: 50px auto;
-            text-align: center;
-        }
-
-        .auth-link {
-            margin-top: 16px;
-            font-size: 14px;
-            color: var(--text-light);
-        }
-
-        .auth-link span {
-            color: var(--primary);
-            cursor: pointer;
-            font-weight: 600;
-        }
-
-        .top-bar {
-            width: 100%;
-            max-width: 800px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-
-        pre {
-            background: #f8fafc;
-            padding: 12px;
-            border-radius: 8px;
-            overflow-x: auto;
-            font-size: 14px;
-            border: 1px solid var(--border);
-        }
-
-        /* 안내 박스 스타일 */
-        .info-box {
-            background-color: #fff7ed;
-            border: 1px solid #fdba74;
-            color: #9a3412;
-            padding: 12px;
-            border-radius: 8px;
-            margin-bottom: 16px;
-            font-size: 0.9em;
-            display: flex;
-            align-items: center;
-            line-height: 1.5; /* 줄간격 추가 */
-        }
-
-        /* Modal */
-        .modal {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.5);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 1000;
-        }
-
-        .modal-content {
-            background: white;
-            padding: 24px;
-            border-radius: 16px;
-            width: 90%;
-            max-width: 600px;
-            max-height: 90vh;
-            overflow-y: auto;
-            position: relative;
-        }
-
-        .close-btn {
-            position: absolute;
-            top: 16px;
-            right: 16px;
-            font-size: 24px;
-            cursor: pointer;
-            color: #9ca3af;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 10px;
-        }
-
-        th, td {
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid var(--border);
-        }
-
-        th {
-            font-weight: 600;
-            color: var(--text-light);
-        }
-        /* [신규 스타일] 히스토리 필터 및 페이지네이션 */
-        .filter-bar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: #f8fafc;
-            padding: 12px;
-            border-radius: 8px;
-            margin-bottom: 16px;
-            border: 1px solid var(--border);
-        }
-
-        .pagination {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 16px;
-            margin-top: 16px;
-        }
-
-        .page-btn {
-            background: white;
-            border: 1px solid var(--border);
-            padding: 8px 16px;
-            border-radius: 6px;
-            cursor: pointer;
-            color: var(--text);
-            font-weight: 600;
-        }
-        .page-btn:disabled {
-            background: #f3f4f6;
-            color: #9ca3af;
-            cursor: not-allowed;
-        }
-        .page-btn:hover:not(:disabled) {
-            background: #f1f5f9;
-            border-color: #cbd5e1;
-        }
-        /* [신규 스타일] 날짜 입력창 */
-        .date-input {
-            padding: 6px 10px;
-            border: 1px solid #cbd5e1;
-            border-radius: 6px;
-            color: #334155;
-            font-family: inherit;
-            outline: none;
-        }
-        .date-input:focus {
-            border-color: var(--primary);
-        }
-        .stats-container {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
-            gap: 12px;
-            margin-bottom: 24px;
-            background: #f8fafc;
-            padding: 16px;
-            border-radius: 12px;
-            border: 1px solid #e2e8f0;
-        }
-        .stat-item {
-            background: white;
-            padding: 12px;
-            border-radius: 8px;
-            text-align: center;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-            border: 1px solid #f1f5f9;
-        }
-        .stat-label {
-            font-size: 0.85em;
-            color: #64748b;
-            margin-bottom: 4px;
-        }
-        .stat-value {
-            font-size: 1.2em;
-            font-weight: 700;
-            color: #0f172a;
-        }
-        /* 점수에 따른 색상 포인트 */
-        .text-blue { color: #2563eb; }   /* 수분 */
-        .text-orange { color: #d97706; } /* 유분 */
-        .text-red { color: #dc2626; }    /* 트러블 */
-    </style>
+    <link rel="stylesheet" href="style.css">
 </head>
-
 <body>
 
-    <div id="topBar" class="top-bar hidden">
-        <div id="statusText" style="font-size: 1.1em;"></div>
-        <button class="btn-logout" onclick="logout()">로그아웃</button>
-    </div>
-
-    <div id="authContainer" class="card auth-container">
-        <div id="loginForm">
-            <h2>👋 환영합니다</h2>
-            <p style="color:var(--text-light); margin-bottom:30px;">AI 스킨 어드바이저 서비스를 이용하려면 로그인하세요.</p>
-            <input type="text" id="loginId" placeholder="아이디 입력">
-            <input type="password" id="loginPw" placeholder="비밀번호 입력" onkeypress="if(event.keyCode==13) reqLogin()">
-            <button class="btn-primary" onclick="reqLogin()">로그인</button>
-            <div class="auth-link">
-                계정이 없으신가요? <span onclick="toggleAuth('signup')">회원가입</span>
-            </div>
-        </div>
-
-        <div id="signupForm" class="hidden">
-            <h2>📝 회원가입</h2>
-            <p style="color:var(--text-light); margin-bottom:20px;">새로운 계정을 생성합니다.</p>
-            <input type="text" id="signId" placeholder="사용할 아이디">
-            <input type="password" id="signPw" placeholder="비밀번호">
-            <input type="text" id="signName" placeholder="이름 (예: 홍길동)">
-            <button class="btn-success" onclick="reqSignup()">가입하기</button>
-            <div class="auth-link">
-                이미 계정이 있으신가요? <span onclick="toggleAuth('login')">로그인</span>
-            </div>
+    <div id="loginOverlay">
+        <div class="login-card">
+            <h2 style="color: #4CAF50; margin-bottom: 20px;">SkinMirror</h2>
+            <input type="text" id="inputId" class="login-input" placeholder="아이디" onkeypress="handleEnter(event)">
+            <input type="password" id="inputPw" class="login-input" placeholder="비밀번호" onkeypress="handleEnter(event)">
+            <button class="login-btn" onclick="performLogin()">로그인</button>
+            <div class="signup-link" onclick="performSignup()">아직 계정이 없으신가요? 회원가입</div>
         </div>
     </div>
 
-    <div id="mainApp" class="container hidden">
+    <div class="dashboard-wrapper">
 
-        <div class="card">
-            <h3>📸 STEP 1. 피부 분석</h3>
-            <div class="grid-2">
-                <div>
-                    <label>현재 사용자</label>
-                    <input type="text" id="currentUserId" readonly style="background:#f3f4f6;">
-                </div>
-                <div>
-                    <label>얼굴 사진 업로드</label>
-                    <input type="file" id="imageFile" accept="image/*">
-                </div>
-            </div>
-            <div class="grid-2">
-                <div><label>수분 (센서값)</label><input type="number" id="moisture" value="30"></div>
-                <div><label>유분 (센서값)</label><input type="number" id="sebum" value="70"></div>
-            </div>
-            <div style="margin-bottom: 20px; padding: 15px; background: #e0f2fe; border-radius: 8px; border: 1px solid #bae6fd;">
-                <h4 style="margin-top:0; color:#0369a1;">🤖 키오스크 모드 (라즈베리파이)</h4>
-                <p style="font-size:0.9em; color:#0c4a6e;">카메라와 센서를 사용하여 자동으로 측정합니다.</p>
-                <button class="btn-primary" style="background-color:#0284c7;" onclick="reqHardwareAnalyze()">
-                    📸 센서 및 카메라 측정 시작
-                </button>
-            </div>
-            <button class="btn-primary" onclick="reqAnalyze()">분석 시작하기</button>
+        <div class="sidebar">
+            <div class="logo">SkinMirror</div>
 
-            <div id="result1Area" class="hidden" style="margin-top:20px;">
-                <h4>📊 1단계 분석 결과</h4>
+            <div class="menu-item active" onclick="switchView('calendar')" id="menu-calendar">
+                <i class="fas fa-calendar-alt"></i> 히스토리
+            </div>
 
-                <div style="background: #f0fdf4; border: 2px solid #bbf7d0; border-radius: 12px; padding: 24px; text-align: center; margin-bottom: 16px;">
-                    <h2 style="margin:0; color:#166534; font-size: 1.2rem;">✨ 피부 종합 점수</h2>
-                    <div style="font-size: 4rem; font-weight: 800; color: #15803d; margin: 8px 0;">
-                        <span id="displayScore">0</span><span style="font-size: 1.5rem; color:#86efac;">점</span>
+            <div class="menu-item" onclick="switchView('report')" id="menu-report">
+                <i class="fas fa-clipboard-list"></i> 분석 리포트
+            </div>
+
+            <div class="menu-item" onclick="switchView('settings')" id="menu-settings">
+                <i class="fas fa-cog"></i> 사용자 설정
+            </div>
+
+            <div class="menu-item logout" onclick="logout()">
+                <i class="fas fa-sign-out-alt"></i> 로그아웃
+            </div>
+        </div>
+
+        <div class="content-area">
+
+            <div id="view-calendar" class="view-section active">
+                <div class="dashboard-container">
+                    <div class="calendar-section">
+                        <div class="cal-header">
+                            <h2 id="currentMonth">2025년 12월</h2>
+                            <div>
+                                <button class="cal-btn" onclick="changeMonth(-1)"><i class="fas fa-chevron-left"></i></button>
+                                <button class="cal-btn" onclick="changeMonth(1)"><i class="fas fa-chevron-right"></i></button>
+                            </div>
+                        </div>
+                        <div class="weekdays">
+                            <div style="color: #ff5252">일</div><div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div style="color: #4a90e2">토</div>
+                        </div>
+                        <div class="days" id="calendarGrid"></div>
                     </div>
-                    <p style="margin:0; color:#16a34a; font-size: 0.9rem;">(100점 만점 / 높을수록 좋은 상태)</p>
-                </div>
 
-                <pre id="result1"></pre>
-            </div>
-        </div>
-
-        <div class="card hidden" id="step2Card">
-            <h3>💊 STEP 2. 맞춤 처방</h3>
-            <p style="color:var(--text-light); font-size:0.9em;">분석 ID: <span id="savedAnalysisId" style="font-weight:bold;">None</span></p>
-
-            <div class="info-box">
-                <div>
-                    ℹ️ 회색 글씨는 기본 예시입니다.<br>
-                    ℹ️ 저장된 회원님의 정보입니다. 변경사항이 있다면 수정해주세요. (결과 확인 시 자동 업데이트)
-                </div>
-            </div>
-
-            <div class="grid-2">
-                <div>
-                    <label>나이</label>
-                    <input type="number" id="age" class="default-value" value="25" oninput="activateInput(this)">
-                </div>
-                <div>
-                    <label>수면 시간 (시간)</label>
-                    <input type="number" id="sleep" class="default-value" value="7.0" oninput="activateInput(this)">
-                </div>
-                <div>
-                    <label>물 섭취량 (ml)</label>
-                    <input type="number" id="water" class="default-value" value="1500" oninput="activateInput(this)">
-                </div>
-                <div>
-                    <label>세안 횟수 (일)</label>
-                    <input type="number" id="washFreq" class="default-value" value="2" oninput="activateInput(this)">
-                </div>
-            </div>
-
-            <div class="grid-2">
-                <div>
-                    <label>세안 온도</label>
-                    <select id="washTemp" class="default-value" onchange="activateInput(this)">
-                        <option value="cold">차가운 물</option>
-                        <option value="warm" selected>미온수 (권장)</option>
-                        <option value="hot">뜨거운 물</option>
-                    </select>
-                </div>
-                <div>
-                    <label>민감성 여부</label>
-                    <select id="sensitivity" class="default-value" onchange="activateInput(this)">
-                        <option value="no" selected>아니오</option>
-                        <option value="yes">예</option>
-                    </select>
-                </div>
-            </div>
-
-             <div style="margin-top: 16px;">
-                <label>선호 제형</label>
-                <select id="texture" class="default-value" onchange="activateInput(this)">
-                    <option value="gel" selected>젤 타입</option>
-                    <option value="cream">크림 타입</option>
-                    <option value="lotion">로션 타입</option>
-                </select>
-            </div>
-
-            <br>
-            <button class="btn-success" onclick="reqRecommend()">최종 처방 받기 (저장 및 분석)</button>
-
-            <div id="result2Area" class="hidden" style="margin-top:20px;">
-                <h4>🏆 최종 추천 결과</h4>
-                <pre id="result2"></pre>
-            </div>
-        </div>
-
-        <div class="card">
-            <h3 style="margin-bottom: 16px;">📅 피부 분석 기록 (히스토리)</h3>
-
-            <div class="filter-bar" style="flex-wrap: wrap; gap: 10px;">
-                <div style="display:flex; align-items:center; gap:8px;">
-                    <label style="font-weight:600; font-size:0.9em;">🔍 조건:</label>
-                    <select id="historyFilter" style="width:auto; margin:0; padding:6px;">
-                        <option value="">전체 보기</option>
-                        <option value="dry">💧 건성 (수분 부족)</option>
-                        <option value="oily">🛢 지성 (유분 과다)</option>
-                        <option value="sensitive">😳 민감성 (홍조)</option>
-                        <option value="pore">🍊 모공 고민</option>
-                        <option value="acne">🚨 트러블 심한 날</option>
-                        <option value="wrinkle">📉 탄력 저하</option>
-                        <option value="good">✨ 피부 상태 좋은 날</option>
-                    </select>
-                </div>
-
-                <div style="display:flex; align-items:center; gap:8px;">
-                    <label style="font-weight:600; font-size:0.9em;">📅 기간:</label>
-                    <input type="date" id="startDate" class="date-input">
-                    <span style="color:#64748b;">~</span>
-                    <input type="date" id="endDate" class="date-input">
-                </div>
-
-                <div style="display:flex; gap:8px;">
-                    <button class="btn-primary btn-sm" onclick="reqHistory(1)">조회</button>
-                    <button class="btn-logout" onclick="resetFilters()" style="padding:6px 12px; font-size:14px;">초기화</button>
-                </div>
-            </div>
-
-            <div id="historyArea" class="hidden">
-                <div id="statsPanel" class="hidden">
-                    <h4 style="margin: 0 0 10px 4px; font-size: 1em; color: #475569;">📊 선택 기간 평균 분석</h4>
-                    <div class="stats-container">
-                        <div class="stat-item">
-                            <div class="stat-label">피부 나이</div>
-                            <div class="stat-value" id="statAge">-</div>
+                    <div class="detail-section">
+                        <div class="user-info">
+                            <div><span style="font-size: 14px; color: #666;">환영합니다!</span><br><strong style="font-size: 20px;" id="displayUserId">User</strong> 님</div>
                         </div>
-                        <div class="stat-item">
-                            <div class="stat-label">수분</div>
-                            <div class="stat-value text-blue" id="statMoist">-</div>
-                        </div>
-                        <div class="stat-item">
-                            <div class="stat-label">유분</div>
-                            <div class="stat-value text-orange" id="statSebum">-</div>
-                        </div>
-                        <div class="stat-item">
-                            <div class="stat-label">트러블</div>
-                            <div class="stat-value text-red" id="statAcne">-</div>
-                        </div>
-                        <div class="stat-item">
-                            <div class="stat-label">주름</div>
-                            <div class="stat-value" id="statWrinkle">-</div>
-                        </div>
-                    </div>
-                </div>
-
-                <div style="height:300px; margin-bottom:24px;">
-                    <canvas id="historyChart"></canvas>
-                </div>
-
-                <div style="overflow-x:auto;">
-                    <table id="historyTable">
-                        <thead>
-                            <tr>
-                                <th>날짜</th>
-                                <th>상태 요약</th>
-                                <th>상세보기</th>
-                            </tr>
-                        </thead>
-                        <tbody></tbody>
-                    </table>
-                </div>
-
-                <div class="pagination">
-                    <button class="page-btn" id="btnPrev" onclick="changePage(-1)">Example Prev</button>
-                    <span id="pageIndicator" style="font-weight:bold; color:var(--primary);">1 / 1</span>
-                    <button class="page-btn" id="btnNext" onclick="changePage(1)">Next ▶</button>
-                </div>
-            </div>
-        </div>
-
-        <div class="card" style="border: 1px solid #cbd5e1; background-color: #f8fafc;">
-            <h3>🛠 관리자 메뉴 (데이터 업데이트)</h3>
-            <div class="grid-2">
-                <div>
-                    <label>관리자 키</label>
-                    <input type="password" id="adminKey" placeholder="admin1234">
-                </div>
-                <div>
-                    <label>&nbsp;</label> <button class="btn-danger" onclick="reqUpdateProducts()">🔄 제품 데이터 업데이트 실행</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div id="detailModal" class="modal hidden" onclick="closeModal(event)">
-        <div class="modal-content">
-            <span class="close-btn" onclick="closeModal(event)">&times;</span>
-            <h2 style="margin-bottom:20px;">상세 분석 결과</h2>
-
-            <div class="grid-2" style="margin-bottom:20px;">
-                <div>
-                    <img id="modalImg" src="" alt="분석 이미지"
-                        style="width:100%; border-radius:8px; object-fit:cover; aspect-ratio:1/1; background:#eee;">
-                </div>
-                <div>
-                    <div style="background:#f8fafc; padding:16px; border-radius:8px;">
-                        <p style="font-size:1.2em; font-weight:bold; margin-top:0;">피부 나이: <span id="modalAge"
-                                style="color:var(--primary);"></span>세</p>
-                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; font-size:0.9em;">
-                            <div>수분: <span id="modalMoist"></span></div>
-                            <div>유분: <span id="modalSebum"></span></div>
-                            <div>여드름: <span id="modalAcne"></span></div>
-                            <div>주름: <span id="modalWrinkle"></span></div>
-                            <div>모공: <span id="modalPore"></span></div>
-                            <div>색소: <span id="modalPigment"></span></div>
-                            <div>홍조: <span id="modalRedness"></span></div>
+                        <div id="detailContent">
+                            <div class="no-data"><i class="fas fa-calendar-alt" style="font-size: 48px; margin-bottom: 10px;"></i><p>날짜를 클릭하여<br>피부 기록을 확인하세요.</p></div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <h3>추천 제품 Top 3</h3>
-            <ul id="modalProducts"
-                style="background:#f0fdf4; padding:16px 16px 16px 32px; border-radius:8px; color:#166534;"></ul>
+            <div id="view-report" class="view-section" style="display: none;">
+                <div class="report-container">
+                    <div class="report-header">
+                        <h2>🧪 피부 정밀 분석 리포트</h2>
+                        <button class="primary-btn" id="analyzeBtn" onclick="runAnalysis()">
+                            <i class="fas fa-magic"></i> 최신 기록으로 분석하기
+                        </button>
+                    </div>
+
+                    <div id="reportResult" style="display: none;">
+                        <h3>🧴 AI 추천 제품</h3>
+                        <div class="product-list" id="productList">Loading...</div>
+
+                        <h3>📝 맞춤 케어 루틴</h3>
+                        <div class="routine-grid" id="routineList">Loading...</div>
+                    </div>
+
+                    <div id="reportEmpty" class="no-data" style="margin-top: 100px;">
+                        <i class="fas fa-search" style="font-size: 48px; margin-bottom: 10px;"></i>
+                        <p>분석 버튼을 눌러<br>맞춤 처방을 받아보세요.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div id="view-settings" class="view-section" style="display: none;">
+                <div class="settings-container">
+                    <h2>⚙️ 사용자 맞춤 설정</h2>
+                    <p style="color:#666; margin-bottom:30px;">정확한 분석을 위해 생활 습관을 입력해주세요.</p>
+
+                    <div class="form-group">
+                        <label>😴 하루 평균 수면 시간 (시간)</label>
+                        <input type="number" id="inputSleep" placeholder="예: 7">
+                    </div>
+
+                    <div class="form-group">
+                        <label>💧 하루 물 섭취량 (ml)</label>
+                        <input type="number" id="inputWater" placeholder="예: 1500">
+                    </div>
+
+                    <div class="form-group">
+                        <label>🧼 하루 세안 횟수 (회)</label>
+                        <input type="number" id="inputWashCount" placeholder="예: 2">
+                    </div>
+
+                    <div class="form-group">
+                        <label>🌡️ 주로 사용하는 세안 물 온도</label>
+                        <div class="chip-group">
+                            <label class="chip">
+                                <input type="radio" name="washTemp" value="hot"> <span>뜨거운 물</span>
+                            </label>
+                            <label class="chip">
+                                <input type="radio" name="washTemp" value="warm"> <span>미온수</span>
+                            </label>
+                            <label class="chip">
+                                <input type="radio" name="washTemp" value="cold"> <span>찬물</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>🌿 민감성 피부인가요?</label>
+                        <div class="chip-group">
+                            <label class="chip">
+                                <input type="radio" name="sensitive" value="yes"> <span>네 (Yes)</span>
+                            </label>
+                            <label class="chip">
+                                <input type="radio" name="sensitive" value="no"> <span>아니오 (No)</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>🧴 선호하는 화장품 제형</label>
+                        <div class="chip-group">
+                            <label class="chip">
+                                <input type="radio" name="texture" value="gel"> <span>젤 (Gel)</span>
+                            </label>
+                            <label class="chip">
+                                <input type="radio" name="texture" value="lotion"> <span>로션 (Lotion)</span>
+                            </label>
+                            <label class="chip">
+                                <input type="radio" name="texture" value="cream"> <span>크림 (Cream)</span>
+                            </label>
+                            <label class="chip">
+                                <input type="radio" name="texture" value="none"> <span>상관없음</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <button class="primary-btn" onclick="saveSettings()" style="width: 100%; margin-top: 20px;">
+                        <i class="fas fa-save"></i> 설정 저장하기
+                    </button>
+                </div>
+            </div>
+
         </div>
     </div>
 
-    <script>
-        // 전역 변수
-        let currentUser = null;
-        let currentAnalysisId = null;
-        let historyData = [];
-        let myChart = null;
-
-        // 화면 전환 함수
-        function toggleAuth(target) {
-            const loginForm = document.getElementById('loginForm');
-            const signupForm = document.getElementById('signupForm');
-
-            document.querySelectorAll('#authContainer input').forEach(input => input.value = '');
-
-            if (target === 'signup') {
-                loginForm.classList.add('hidden');
-                signupForm.classList.remove('hidden');
-            } else {
-                signupForm.classList.add('hidden');
-                loginForm.classList.remove('hidden');
-            }
-        }
-
-        // 로그인 요청
-        async function reqLogin() {
-            const id = document.getElementById('loginId').value;
-            const pw = document.getElementById('loginPw').value;
-            if (!id || !pw) return alert("아이디와 비밀번호를 입력하세요.");
-
-            try {
-                const res = await fetch('/login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ user_id: id, password: pw, name: "user" })
-                });
-                const data = await res.json();
-
-                if (res.ok) {
-                    currentUser = data.user_info;
-                    document.getElementById('authContainer').classList.add('hidden');
-                    document.getElementById('topBar').classList.remove('hidden');
-                    document.getElementById('mainApp').classList.remove('hidden');
-                    document.getElementById('statusText').innerHTML = `👤 <b>${currentUser.name}</b>님`;
-                    document.getElementById('currentUserId').value = currentUser.user_id;
-
-                    // 로그인 성공 시 DB 프로필 로드 및 기록 불러오기
-                    await loadUserProfile(currentUser.user_id);
-                    reqHistory();
-                } else {
-                    alert(data.detail);
-                }
-            } catch (e) { alert("서버 오류: " + e); }
-        }
-
-        // 회원가입 요청
-        async function reqSignup() {
-            const id = document.getElementById('signId').value;
-            const pw = document.getElementById('signPw').value;
-            const name = document.getElementById('signName').value;
-            if (!id || !pw) return alert("정보를 모두 입력하세요.");
-
-            try {
-                const res = await fetch('/signup', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ user_id: id, password: pw, name: name })
-                });
-                if (res.ok) {
-                    alert("가입되었습니다! 로그인해주세요.");
-                    toggleAuth('login');
-                } else {
-                    const err = await res.json();
-                    alert(err.detail);
-                }
-            } catch (e) { alert("서버 오류: " + e); }
-        }
-
-        // 로그아웃
-        function logout() {
-            location.reload();
-        }
-
-        // [신규] 입력창 활성화 (회색 -> 검은색)
-        function activateInput(el) {
-            el.classList.remove('default-value');
-        }
-
-        // [신규] 사용자 프로필 불러오기 및 스타일 적용
-        async function loadUserProfile(userId) {
-            try {
-                const res = await fetch(`/user/profile/${userId}`);
-                const data = await res.json();
-
-                // 데이터가 있으면 값을 채우고 검은색으로(활성화)
-                if (data && Object.keys(data).length > 0) {
-                    setInputValue('age', data.age);
-                    setInputValue('sleep', data.sleep_hours_7d);
-                    setInputValue('water', data.water_intake_ml);
-                    setInputValue('washFreq', data.wash_freq_per_day);
-                    setInputValue('washTemp', data.wash_temp);
-                    setInputValue('sensitivity', data.sensitivity);
-                    setInputValue('texture', data.pref_texture);
-                } else {
-                    // 신규 유저라면 회색(기본값 스타일) 적용
-                    resetToDefaultStyle();
-                }
-            } catch (e) {
-                console.error("프로필 로드 실패:", e);
-            }
-        }
-
-        function setInputValue(id, val) {
-            const el = document.getElementById(id);
-            if (val !== undefined && val !== null) {
-                el.value = val;
-                el.classList.remove('default-value');
-            }
-        }
-
-        function resetToDefaultStyle() {
-            const ids = ['age', 'sleep', 'water', 'washFreq', 'washTemp', 'sensitivity', 'texture'];
-            ids.forEach(id => {
-                document.getElementById(id).classList.add('default-value');
-            });
-        }
-
-        // 분석 요청
-        async function reqAnalyze() {
-            const fileInput = document.getElementById('imageFile');
-            if (fileInput.files.length === 0) return alert("사진을 선택해주세요.");
-
-            const formData = new FormData();
-            formData.append("user_id", currentUser.user_id);
-            formData.append("moisture", document.getElementById('moisture').value);
-            formData.append("sebum", document.getElementById('sebum').value);
-            formData.append("file", fileInput.files[0]);
-
-            try {
-                const res = await fetch('/analyze', { method: 'POST', body: formData });
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.detail);
-
-                document.getElementById('result1Area').classList.remove('hidden');
-
-                // [NEW] 종합 점수 표시
-                document.getElementById('displayScore').innerText = data.total_score || 0;
-
-                document.getElementById('result1').innerText = JSON.stringify(data, null, 2);
-
-                if (data.analysis_id) {
-                    currentAnalysisId = data.analysis_id;
-                    document.getElementById('savedAnalysisId').innerText = currentAnalysisId;
-                    document.getElementById('step2Card').classList.remove('hidden');
-                    document.getElementById('step2Card').scrollIntoView({ behavior: 'smooth' });
-                }
-            } catch (err) { alert(err); }
-        }
-
-        // 하드웨어 측정 요청
-        async function reqHardwareAnalyze() {
-            if (!currentUser) return alert("로그인이 필요합니다.");
-
-            const btn = event.target;
-            const originalText = btn.innerText;
-            btn.innerText = "⏳ 측정 및 분석 중...";
-            btn.disabled = true;
-
-            try {
-                const formData = new FormData();
-                formData.append("user_id", currentUser.user_id);
-
-                const res = await fetch('/analyze-hardware', {
-                    method: 'POST',
-                    body: formData
-                });
-
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.detail);
-
-                document.getElementById('result1Area').classList.remove('hidden');
-
-                // [NEW] 종합 점수 표시 (하드웨어 모드)
-                document.getElementById('displayScore').innerText = data.total_score || 0;
-
-                document.getElementById('result1').innerText = JSON.stringify(data, null, 2);
-
-                if(data.sensor_data) {
-                    document.getElementById('moisture').value = data.sensor_data.moisture;
-                    document.getElementById('sebum').value = data.sensor_data.sebum;
-                    alert(`측정 완료!\n수분: ${data.sensor_data.moisture}, 유분: ${data.sensor_data.sebum}`);
-                }
-
-                if (data.analysis_id) {
-                    currentAnalysisId = data.analysis_id;
-                    document.getElementById('savedAnalysisId').innerText = currentAnalysisId;
-                    document.getElementById('step2Card').classList.remove('hidden');
-                    document.getElementById('step2Card').scrollIntoView({ behavior: 'smooth' });
-                }
-
-            } catch (err) {
-                alert("하드웨어 분석 실패: " + err);
-            } finally {
-                btn.innerText = originalText;
-                btn.disabled = false;
-            }
-        }
-
-        // 추천 요청
-        async function reqRecommend() {
-            if (!currentAnalysisId) return alert("분석부터 진행하세요.");
-
-            const payload = {
-                "user_id": currentUser.user_id,
-                "analysis_id": currentAnalysisId,
-                "lifestyle": {
-                    "sleep_hours_7d": parseFloat(document.getElementById('sleep').value),
-                    "water_intake_ml": parseInt(document.getElementById('water').value),
-                    "wash_freq_per_day": parseInt(document.getElementById('washFreq').value),
-                    "wash_temp": document.getElementById('washTemp').value,
-                    "sensitivity": document.getElementById('sensitivity').value
-                },
-                "user_pref": {
-                    "age": parseInt(document.getElementById('age').value),
-                    "pref_texture": document.getElementById('texture').value
-                }
-            };
-
-            try {
-                const res = await fetch('/recommend', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                const data = await res.json();
-
-                if (!res.ok) {
-                    alert("오류: " + data.detail);
-                    return;
-                }
-
-                document.getElementById('result2Area').classList.remove('hidden');
-                document.getElementById('result2').innerText = JSON.stringify(data, null, 2);
-
-                reqHistory();
-            } catch (err) { alert(err); }
-        }
-
-        // [전역 변수 추가]
-        let currentPage = 1;
-        let totalPages = 1;
-
-        // 1. 히스토리 요청 (필터 + 페이징 적용)
-        async function reqHistory(page) {
-            if (!currentUser) return;
-
-            if (page) currentPage = page;
-
-            // 1. 입력값 가져오기
-            const filterVal = document.getElementById('historyFilter').value;
-            const startVal = document.getElementById('startDate').value;
-            const endVal = document.getElementById('endDate').value;
-
-            try {
-                // 2. URL 생성 (쿼리 파라미터 조립)
-                // 기본: /history/search?user_id=...&page=...
-                let url = `/history/search?user_id=${currentUser.user_id}&page=${currentPage}`;
-
-                if (filterVal) url += `&condition=${filterVal}`;
-                if (startVal) url += `&start_date=${startVal}`;
-                if (endVal) url += `&end_date=${endVal}`;
-
-                // 3. 서버 요청
-                const res = await fetch(url);
-                const responseJson = await res.json();
-
-                const resultData = responseJson.data;
-                historyData = resultData.records;
-                totalPages = resultData.total_pages;
-
-                renderHistoryUI(); // 화면 그리기
-
-                reqStats(startVal, endVal);
-
-            } catch (e) {
-                console.error("히스토리 로드 실패:", e);
-                alert("기록을 불러오는 중 오류가 발생했습니다.");
-            }
-        }
-
-        // [신규] 필터 초기화 함수
-        function resetFilters() {
-            document.getElementById('historyFilter').value = "";
-            document.getElementById('startDate').value = "";
-            document.getElementById('endDate').value = "";
-            reqHistory(1); // 초기화 후 즉시 조회
-        }
-
-        // 2. UI 렌더링 (테이블 + 차트 + 페이지네이션)
-        function renderHistoryUI() {
-            const area = document.getElementById('historyArea');
-            const tbody = document.querySelector('#historyTable tbody');
-            tbody.innerHTML = "";
-
-            if (historyData.length === 0) {
-                tbody.innerHTML = "<tr><td colspan='3' style='text-align:center; padding:20px;'>해당 조건의 기록이 없습니다.</td></tr>";
-                // 데이터 없으면 차트 숨기거나 빈 차트 표시 (여기선 유지)
-            } else {
-                // 테이블 그리기
-                historyData.forEach((item, index) => {
-                    // 점수 요약 문자열 만들기
-                    let summary = `나이 ${item.skin_age}세`;
-                    if (item.scores.moisture < 30) summary += " | 💧건조";
-                    if (item.scores.sebum > 70) summary += " | 🛢지성";
-                    if (item.scores.acne > 50) summary += " | 🚨트러블";
-
-                    tbody.innerHTML += `<tr>
-                        <td>${item.date}</td>
-                        <td>${summary}</td>
-                        <td><button class="btn-primary btn-sm" onclick="openModal(${index})">보기</button></td>
-                    </tr>`;
-                });
-            }
-
-            // 차트 업데이트 (현재 페이지 데이터만 표시)
-            renderChart(historyData);
-
-            // 페이지네이션 버튼 상태 업데이트
-            document.getElementById('pageIndicator').innerText = `${currentPage} / ${totalPages === 0 ? 1 : totalPages}`;
-            document.getElementById('btnPrev').disabled = (currentPage <= 1);
-            document.getElementById('btnNext').disabled = (currentPage >= totalPages);
-
-            area.classList.remove('hidden');
-        }
-
-        // 3. 페이지 변경 버튼 핸들러
-        function changePage(delta) {
-            const nextPage = currentPage + delta;
-            if (nextPage > 0 && nextPage <= totalPages) {
-                reqHistory(nextPage);
-            }
-        }
-
-        // [수정] 차트 렌더링 함수 (수분 vs 유분 비교)
-        function renderChart(data) {
-            const ctx = document.getElementById('historyChart').getContext('2d');
-
-            // 1. 날짜순 정렬 (과거 -> 현재)
-            // 데이터가 '최신순'으로 오기 때문에, 그래프는 왼쪽이 과거가 되도록 뒤집어야 보기 편합니다.
-            const sortedData = [...data].sort((a, b) => new Date(a.date) - new Date(b.date));
-
-            // 2. 데이터 추출
-            const labels = sortedData.map(d => d.date.split(' ')[0]); // 날짜만 (YYYY-MM-DD)
-            const moistures = sortedData.map(d => d.scores.moisture); // 수분 점수
-            const sebums = sortedData.map(d => d.scores.sebum);       // 유분 점수
-
-            // 3. 기존 차트가 있으면 삭제 (중복 생성 방지)
-            if (myChart) myChart.destroy();
-
-            // 4. 새 차트 생성
-            myChart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: [
-                        {
-                            label: '💧 수분도',
-                            data: moistures,
-                            borderColor: '#3b82f6', // 파란색
-                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                            tension: 0.3,
-                            fill: true
-                        },
-                        {
-                            label: '🛢 유분도',
-                            data: sebums,
-                            borderColor: '#f59e0b', // 노란색
-                            backgroundColor: 'rgba(245, 158, 11, 0.1)',
-                            tension: 0.3,
-                            fill: true
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            max: 100 // 점수는 100점 만점
-                        }
-                    },
-                    interaction: {
-                        mode: 'index',
-                        intersect: false,
-                    },
-                }
-            });
-        }
-
-        // 모달 열기
-        function openModal(index) {
-            const item = historyData[index];
-            const scores = item.scores || {};
-
-            const imgTag = document.getElementById('modalImg');
-            if (item.image_path) {
-                const filename = item.image_path.split(/[/\\\\]/).pop();
-                imgTag.src = `/uploads/${filename}`;
-                imgTag.classList.remove('hidden');
-            } else {
-                imgTag.classList.add('hidden');
-            }
-
-            document.getElementById('modalAge').innerText = item.skin_age;
-            document.getElementById('modalAcne').innerText = scores.acne || 0;
-            document.getElementById('modalWrinkle').innerText = scores.wrinkles || 0;
-            document.getElementById('modalPore').innerText = scores.pores || 0;
-            document.getElementById('modalPigment').innerText = scores.pigmentation || 0;
-            document.getElementById('modalRedness').innerText = scores.redness || 0;
-            document.getElementById('modalMoist').innerText = scores.moisture || 0;
-            document.getElementById('modalSebum').innerText = scores.sebum || 0;
-
-            const ul = document.getElementById('modalProducts');
-            ul.innerHTML = "";
-            if (item.top3_names && item.top3_names.length > 0) {
-                item.top3_names.forEach(name => {
-                    ul.innerHTML += `<li>${name}</li>`;
-                });
-            } else {
-                ul.innerHTML = "<li>추천 제품 정보가 없습니다.</li>";
-            }
-
-            document.getElementById('detailModal').classList.remove('hidden');
-        }
-
-        // 모달 닫기
-        function closeModal(e) {
-            if (e.target === e.currentTarget || e.target.classList.contains('close-btn')) {
-                document.getElementById('detailModal').classList.add('hidden');
-            }
-        }
-
-        // 관리자 제품 업데이트 요청
-        async function reqUpdateProducts() {
-            const secretKey = document.getElementById('adminKey').value;
-            if (!secretKey) return alert("관리자 키를 입력해주세요.");
-
-            const formData = new FormData();
-            formData.append("secret_key", secretKey);
-
-            const btn = event.target;
-            const originalText = btn.innerText;
-            btn.innerText = "🚀 요청 중...";
-            btn.disabled = true;
-
-            try {
-                const res = await fetch('/update-products', {
-                    method: 'POST',
-                    body: formData
-                });
-                const data = await res.json();
-
-                if (res.ok) {
-                    alert("✅ 성공: " + data.message + "\n(백그라운드에서 작업이 진행됩니다.)");
-                } else {
-                    alert("❌ 실패: " + data.detail);
-                }
-            } catch (e) {
-                alert("서버 통신 오류: " + e);
-            } finally {
-                btn.innerText = originalText;
-                btn.disabled = false;
-            }
-        }
-        // [신규] 통계 데이터 요청 함수
-        async function reqStats(start, end) {
-            // 날짜가 하나라도 없으면 통계 패널 숨김
-            if (!start || !end) {
-                document.getElementById('statsPanel').classList.add('hidden');
-                return;
-            }
-
-            try {
-                // 서버에 통계 요청
-                const url = `/history/stats?user_id=${currentUser.user_id}&start_date=${start}&end_date=${end}`;
-                const res = await fetch(url);
-                const json = await res.json();
-
-                if (json.status === "success") {
-                    const d = json.data;
-                    // 화면에 값 채워넣기
-                    document.getElementById('statAge').innerText = d.avg_skin_age + "세";
-                    document.getElementById('statMoist').innerText = d.avg_moisture + "점";
-                    document.getElementById('statSebum').innerText = d.avg_sebum + "점";
-                    document.getElementById('statAcne').innerText = d.avg_acne + "점";
-                    document.getElementById('statWrinkle').innerText = d.avg_wrinkle + "점";
-
-                    // 패널 보여주기
-                    document.getElementById('statsPanel').classList.remove('hidden');
-                } else {
-                    // 데이터가 없거나 실패 시 숨김
-                    document.getElementById('statsPanel').classList.add('hidden');
-                }
-            } catch (e) {
-                console.error("통계 로드 실패:", e);
-                document.getElementById('statsPanel').classList.add('hidden');
-            }
-        }
-    </script>
+    <script src="script.js"></script>
 </body>
 </html>

@@ -21,7 +21,7 @@ import numpy as np
 from services.config import *
 
 from services.filters import get_filter_query
-
+1
 # 로깅 설정
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -430,7 +430,7 @@ def save_user_profile_db(user_id, data: dict):
         return False
 
 
-# [신규 함수] 프로필 조회
+# 프로필 조회
 def get_user_profile_db(user_id):
     try:
         conn = psycopg2.connect(**DB_CONFIG)
@@ -539,7 +539,7 @@ def search_skin_history_db(
                 """
         params = [user_id]
 
-        # 2. 상태 조건 필터 적용
+        # 2. 필터 적용 (기존과 동일)
         if condition:
             filter_result = get_filter_query(condition)
             if filter_result:
@@ -548,7 +548,6 @@ def search_skin_history_db(
                 if val is not None:
                     params.append(val)
 
-        # 3. 날짜 기간 필터 적용
         if start_date:
             base_query += " AND a.created_at >= %s"
             params.append(start_date)
@@ -557,19 +556,20 @@ def search_skin_history_db(
             base_query += " AND a.created_at <= %s"
             params.append(end_date + " 23:59:59")
 
-        # 4. 개수 세기 (Pagination용)
+        # 4. 개수 세기
         count_sql = f"SELECT COUNT(*) {base_query}"
         cursor.execute(count_sql, tuple(params))
         total_count = cursor.fetchone()[0]
 
-        # 5. 데이터 조회
+        # 5. 데이터 조회 (⭐️ 수정됨: 추천 정보 컬럼 추가!)
         offset = (page - 1) * page_size
         data_sql = f"""
                     SELECT 
                         a.id, a.created_at, 
-                        a.moisture, a.sebum, a.redness, a.pores, a.wrinkles, a.acne,
+                        a.moisture, a.sebum, a.redness, a.pores, a.wrinkles, a.acne, a.pigmentation,
                         a.image_path, 
-                        r.skin_age
+                        r.skin_age,
+                        r.top3_products, r.routine_am, r.routine_pm  -- 👈 추가된 부분
                     {base_query}
                     ORDER BY a.created_at DESC
                     LIMIT %s OFFSET %s
@@ -584,18 +584,48 @@ def search_skin_history_db(
 
         records = []
         for r in rows:
-            # DB에서 가져온 순서대로 매핑 (인덱스 주의)
-            # 0:id, 1:date, 2~7:scores, 8:image, 9:age
+            # 인덱스: 0~8(점수), 9(이미지), 10(나이), 11(제품), 12(아침), 13(저녁)
+
+            # DB에 JSON 문자열로 저장된 것을 파이썬 객체(List/Dict)로 복원
+            top3_raw = r[11]
+            routine_am_raw = r[12]
+            routine_pm_raw = r[13]
+
+            top3 = json.loads(top3_raw) if top3_raw else []
+            routine_am = json.loads(routine_am_raw) if routine_am_raw else []
+            routine_pm = json.loads(routine_pm_raw) if routine_pm_raw else []
+
+            # 점수 계산
+            moisture = r[2] or 0
+            sebum = r[3] or 0
+            redness = r[4] or 0
+            pore = r[5] or 0
+            wrinkles = r[6] or 0
+            acne = r[7] or 0
+            pigmentation = r[8] or 0
+
+            negative_sum = acne + wrinkles + pore + redness + pigmentation
+            overall_score = max(0, 100 - int(negative_sum / 5))
 
             records.append({
                 "id": r[0],
                 "date": r[1].strftime("%Y-%m-%d %H:%M"),
-                "image_path": r[8],
-                "skin_age": r[9] if r[9] else 0,
+                "image_path": r[9],
+                "skin_age": r[10] if r[10] else 0,
+                "overall_score": overall_score,
+
+                # ⭐️ 앱으로 보낼 추가 정보
+                "products": top3,
+                "routine": {
+                    "am": routine_am,
+                    "pm": routine_pm
+                },
+
                 "scores": {
-                    "moisture": r[2], "sebum": r[3],
-                    "redness": r[4], "pore": r[5],
-                    "wrinkles": r[6], "acne": r[7]
+                    "moisture": moisture, "sebum": sebum,
+                    "redness": redness, "pore": pore,
+                    "wrinkles": wrinkles, "acne": acne,
+                    "pigmentation": pigmentation
                 }
             })
 
@@ -680,25 +710,27 @@ def get_skin_period_stats_db(user_id: str, start_date: str, end_date: str):
         return None
 
 
-def save_analysis_log_db(user_id, file_path, scores):
+def save_analysis_log_db(user_id, file_path, scores, total_score=0): # 👈 total_score 인자 추가
     """
-    [DB 저장 전담] 분석 결과와 이미지 경로를 DB에 저장하고 ID를 반환합니다.
+    [DB 저장 전담] 분석 결과와 이미지 경로, 그리고 '종합 점수'를 DB에 저장합니다.
     """
     try:
         conn = psycopg2.connect(**DB_CONFIG)
         cursor = conn.cursor()
 
+        # 쿼리에 total_score 컬럼 추가
         insert_sql = """
             INSERT INTO analysis_log 
-            (user_id, image_path, moisture, sebum, redness, pores, wrinkles, acne, pigmentation)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            (user_id, image_path, moisture, sebum, redness, pores, wrinkles, acne, pigmentation, total_score)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id;
         """
         # 딕셔너리에서 값 추출
         params = (
             user_id, file_path,
             scores['moisture'], scores['sebum'], scores['redness'],
-            scores['pores'], scores['wrinkles'], scores['acne'], scores.get('pigmentation', 0)
+            scores['pores'], scores['wrinkles'], scores['acne'], scores.get('pigmentation', 0),
+            total_score # 👈 여기에 점수 값 전달
         )
 
         cursor.execute(insert_sql, params)

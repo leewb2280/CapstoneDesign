@@ -13,8 +13,8 @@ openai                  # GPT API 통신용
 numpy                   # 데이터 계산 및 배열 처리
 joblib                  # 학습 모델(.pkl) 로드용
 scikit-learn            # 머신러닝 모델 호환성용 (trouble_model.pkl)
-pandas                  # (선택) 데이터 수집/처리 시 필요할 수 있음
+pandas                  # 데이터 수집/처리 시 필요할 수 있음
 
-# --- [라즈베리파이 하드웨어 (PC에서는 주석 처리)] ---
-spidev                # SPI 통신 (센서)
-RPi.GPIO              # GPIO 제어
+# --- [라즈베리파이 하드웨어] ---
+spidev                  # SPI 통신 (센서)
+RPi.GPIO                # GPIO 제어

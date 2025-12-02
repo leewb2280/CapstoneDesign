@@ -40,7 +40,14 @@ sudo raspi-config
 
 ```bash
 # libcamera (카메라), libatlas (Numpy 가속), PostgreSQL(DB) 설치
-sudo apt install -y libcamera-apps libopenblas-dev postgresql
+sudo apt install -y python3-tk libcamera-apps libopenblas-dev postgresql
+```
+
+### 2-4. 하드웨어 접근 권한 설정
+파이썬에서 sudo 없이 센서와 카메라를 제어하기 위해 권한을 추가합니다.<br>
+(입력 후 재부팅하거나 로그아웃/로그인 해야 적용됩니다.)
+```bash
+sudo usermod -a -G gpio,video,spi,i2c $USER
 ```
 
 ---
