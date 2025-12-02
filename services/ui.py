@@ -3,11 +3,25 @@ import threading
 import asyncio
 import uuid
 import os
+import sys
+
 
 # -----------------------------------------------------------
-# [1] 서버 로직 가져오기 (핵심)
+# [1] 경로 설정 (ImportError 방지용)
 # -----------------------------------------------------------
-from .skin_analyzer import process_skin_analysis
+
+current_dir = os.path.dirname(os.path.abspath(__file__)) # services 폴더
+root_dir = os.path.dirname(current_dir)                # CapstoneDesign 폴더
+
+# 시스템 경로에 루트 폴더를 추가합니다.
+sys.path.append(root_dir)
+
+# -----------------------------------------------------------
+# [2] 모듈 가져오기 (절대 경로 사용)
+# -----------------------------------------------------------
+
+# 이제 루트 경로가 추가되었으므로 'services.'를 붙여서 절대 경로로 가져옵니다.
+from services.skin_analyzer import process_skin_analysis
 
 
 # -----------------------------------------------------------
