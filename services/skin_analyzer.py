@@ -103,6 +103,16 @@ def read_hardware_sensors():
 # 2. 카메라 제어 (Picamera2) - 보내주신 코드 통합
 # ==============================================================================
 
+# 1. 현재 파일(skin_analyzer.py)의 위치를 구함 -> .../SkinProject/services
+CURRENT_FILE_PATH = os.path.abspath(__file__)
+SERVICES_DIR = os.path.dirname(CURRENT_FILE_PATH)
+
+# 2. 그 상위 폴더(프로젝트 루트)를 구함 -> .../SkinProject
+ROOT_DIR = os.path.dirname(SERVICES_DIR)
+
+# 3. 루트 경로와 폴더명을 합침 -> .../SkinProject/temp_uploads (무조건 여기로 고정됨)
+DEFAULT_SAVE_DIR = os.path.join(ROOT_DIR, "temp_uploads")
+
 def capture_image_from_camera(save_dir="temp_uploads"):
     """
     [Picamera2 제어]

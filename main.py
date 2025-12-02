@@ -40,9 +40,14 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # 이미지 저장 경로 설정
-UPLOAD_DIR = "temp_uploads"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
+# 1. 현재 main.py가 있는 폴더 위치를 구합니다.
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
+# 2. 그 위치를 기준으로 폴더 경로를 만듭니다.
+UPLOAD_DIR = os.path.join(BASE_DIR, "temp_uploads")
+
+# 3. 폴더가 없으면 생성합니다.
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # ---------------------------------------------------------
 # [Lifespan 설정] 시작과 종료를 관리하는 함수
@@ -87,7 +92,7 @@ app.add_middleware(
 # 2. 정적 파일 경로 설정 (이미지 저장소, 웹 페이지)
 os.makedirs("temp_uploads", exist_ok=True)
 app.mount("/static", StaticFiles(directory="static"), name="static")
-app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
+app.mount("/temp_uploads", StaticFiles(directory=UPLOAD_DIR), name="temp_uploads")
 
 
 # ---------------------------------------------------------

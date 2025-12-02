@@ -187,7 +187,7 @@ function showDetail(dateKey) {
         </div>
     `;
 
-    // 2. ⭐️ [추가됨] 과거 추천 제품 & 루틴 정보
+    // 2. 과거 추천 제품 & 루틴 정보
     // (데이터가 있을 때만 표시)
     if (data.products && data.products.length > 0) {
         html += `<h4 style="margin-top:30px; margin-bottom:10px;">🧴 당시 추천 제품</h4>
@@ -268,6 +268,9 @@ async function runAnalysis() {
 
         // 3. 결과 렌더링
         renderReport(report);
+
+        // 달력 데이터도 최신으로 갱신
+        fetchMonthlyData();
 
     } catch (e) {
         console.error(e);

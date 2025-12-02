@@ -3,4 +3,6 @@
 .venv
 .env
 temp_uploads
+image-data
+test_run.py
 other
