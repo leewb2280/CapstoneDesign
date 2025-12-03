@@ -103,7 +103,7 @@ def start_measurement():
 root = tk.Tk()
 root.title("AI SkinCare Kiosk")
 # root.attributes('-fullscreen', True) # 실전용
-root.geometry("480x800")  # 테스트용
+# root.geometry("480x800")  # 테스트용
 root.configure(bg="white")
 root.bind("<Escape>", lambda e: root.destroy())
 
@@ -141,9 +141,12 @@ tk.Label(root, text="[ 상태 메시지 ]", font=("Arial", 14, "bold"), fg="#d95
 recommendation_label = tk.Label(root, text="버튼을 눌러 측정을 시작하세요.", font=("Arial", 12), bg="white")
 recommendation_label.pack(pady=5)
 
-measure_button = tk.Button(root, text="피부 측정하기", font=("Arial", 16, "bold"), bg="#00aaff", fg="white", relief="flat",
+measure_button = tk.Button(root, text="피부 측정하기",
+                           font=("Arial", 24, "bold"),
+                           bg="#00aaff", fg="white", relief="flat",
+                           height=3,
                            command=start_measurement)
-measure_button.pack(side="bottom", pady=30, padx=20, fill="x")
+measure_button.pack(side="bottom", pady=30, padx=20, fill="x", ipady=10)
 
 draw_gauge(canvas, 0, 0)
 root.mainloop()
