@@ -16,19 +16,14 @@ from services.skin_analyzer import process_skin_analysis
 
 
 # -----------------------------------------------------------
-# [2] 헬퍼 클래스: 스크롤 가능한 프레임
+# [2] 헬퍼 클래스: 터치 스크롤 가능한 프레임
 # -----------------------------------------------------------
 class ScrollableFrame(tk.Frame):
     def __init__(self, container, *args, **kwargs):
         super().__init__(container, *args, **kwargs)
 
-        # 캔버스 생성
         self.canvas = tk.Canvas(self, bg="white", highlightthickness=0)
-
-        # 스크롤바 생성
         scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
-
-        # 내용이 들어갈 프레임
         self.scrollable_frame = tk.Frame(self.canvas, bg="white")
 
         self.scrollable_frame.bind(
@@ -42,67 +37,63 @@ class ScrollableFrame(tk.Frame):
         self.canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
 
-        # -------------------------------------------------------
-        # [핵심] 터치(마우스 드래그) 이벤트 바인딩
-        # -------------------------------------------------------
-        # 1. 화면을 누를 때: 현재 위치 기억
+        self.last_y = 0
+
+    def enable_touch_scroll(self):
+        """내부 위젯들에 터치 스크롤 기능 주입"""
+        self._bind_recursive(self.scrollable_frame)
         self.canvas.bind("<ButtonPress-1>", self.start_scroll)
-        # 2. 누른 채로 움직일 때: 화면을 그만큼 이동시킴
         self.canvas.bind("<B1-Motion>", self.do_scroll)
 
-        # (선택) 마우스 휠도 계속 지원
-        self.canvas.bind_all("<MouseWheel>", self._on_mousewheel)
+    def _bind_recursive(self, widget):
+        # [중요] 입력창(Entry)에서는 스크롤이 되면 안 됨 (글자 선택 방해)
+        if isinstance(widget, tk.Entry):
+            return
 
-    def _on_mousewheel(self, event):
-        self.canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        widget.bind("<ButtonPress-1>", self.start_scroll, add="+")
+        widget.bind("<B1-Motion>", self.do_scroll, add="+")
 
-    # --- 터치 스크롤 함수 ---
+        for child in widget.winfo_children():
+            self._bind_recursive(child)
+
     def start_scroll(self, event):
-        # 터치 시작 지점을 기억합니다.
-        self.canvas.scan_mark(event.x, event.y)
+        self.last_y = event.y_root
 
     def do_scroll(self, event):
-        # 시작 지점으로부터 얼마나 움직였는지 계산해서 화면을 이동시킵니다.
-        # gain=1은 손가락이 움직인 만큼 정확히 따라오게 합니다.
-        self.canvas.scan_dragto(event.x, event.y, gain=1)
+        delta = self.last_y - event.y_root
+        if abs(delta) > 0:
+            self.canvas.yview_scroll(int(delta / 3), "units")
+            self.last_y = event.y_root
 
 
 # -----------------------------------------------------------
-# [3] 로직 및 함수
+# [3] 로직 함수
 # -----------------------------------------------------------
 def draw_gauge(canvas, oil, moisture):
-    """유수분 게이지 그리기"""
     canvas.delete("all")
-
-    # 유분 (파랑)
+    # 유분
     canvas.create_oval(40, 40, 160, 160, outline="#e0e0e0", width=20)
     canvas.create_arc(40, 40, 160, 160, start=90, extent=-oil * 3.6, outline="#00aaff", width=20, style="arc")
     canvas.create_text(100, 100, text=f"유분\n{int(oil)}%", fill="black", font=("Arial", 12, "bold"))
-
-    # 수분 (초록)
+    # 수분
     canvas.create_oval(190, 40, 310, 160, outline="#e0e0e0", width=20)
     canvas.create_arc(190, 40, 310, 160, start=90, extent=-moisture * 3.6, outline="#55ff55", width=20, style="arc")
     canvas.create_text(250, 100, text=f"수분\n{int(moisture)}%", fill="black", font=("Arial", 12, "bold"))
 
 
 def run_measurement_thread():
-    # 아이디 확인
     input_id = id_entry.get().strip()
     if not input_id:
         recommendation_label.config(text="⚠️ 아이디를 먼저 입력해주세요!")
         return
 
-    # UI 잠금
     measure_button.config(state="disabled", text="분석 중... (약 10초)")
     recommendation_label.config(text=f"'{input_id}'님의 피부를 분석 중입니다...")
 
     ui_data = None
-
     try:
-        # 서버 분석 요청
         result = asyncio.run(process_skin_analysis(user_id=input_id, file=None))
         scores = result["scores"]
-
         ui_data = {
             "score": result["total_score"],
             "oil": scores.get("sebum", 0),
@@ -113,8 +104,6 @@ def run_measurement_thread():
             "redness": scores.get("redness", 0),
             "pigmentation": scores.get("pigmentation", 0)
         }
-        print(f"✅ 분석 완료: {ui_data}")
-
     except Exception as e:
         print(f"❌ 분석 실패: {e}")
         ui_data = None
@@ -151,19 +140,19 @@ def start_measurement():
 # -----------------------------------------------------------
 root = tk.Tk()
 root.title("AI SkinCare Kiosk")
-# root.attributes('-fullscreen', True) # 실전용 (전체화면)
-root.geometry("480x800")  # 테스트용
+# root.attributes('-fullscreen', True) # 전체화면 필요 시 해제
+root.geometry("480x800")
 root.configure(bg="white")
 root.bind("<Escape>", lambda e: root.destroy())
 
-# --- 1. 스크롤 가능한 영역 (상단 ~ 중간) ---
+# --- 1. 상단 스크롤 영역 (여기에 내용을 다 넣습니다) ---
 scroll_wrapper = ScrollableFrame(root)
-scroll_wrapper.pack(side="top", fill="both", expand=True, padx=10, pady=10)
+scroll_wrapper.pack(side="top", fill="both", expand=True)
 
-# 실제 내용이 들어갈 곳 (content_frame)
+# content_frame: 실제 내용이 담기는 곳
 content_frame = scroll_wrapper.scrollable_frame
 
-# [내용물 추가]
+# [내용물 배치]
 tk.Label(content_frame, text="AI 스킨케어 분석", font=("Arial", 20, "bold"), bg="white").pack(pady=20)
 
 canvas = tk.Canvas(content_frame, width=350, height=200, bg="white", highlightthickness=0)
@@ -172,7 +161,7 @@ canvas.pack()
 score_label = tk.Label(content_frame, text="종합 점수: --점", font=("Arial", 18, "bold"), fg="#007bff", bg="white")
 score_label.pack(pady=5)
 
-# 상세 정보 프레임
+# 상세 점수 (2열 배치)
 detail_frame = tk.Frame(content_frame, bg="white")
 detail_frame.pack(pady=10)
 
@@ -194,25 +183,26 @@ row3 = tk.Frame(detail_frame, bg="white")
 row3.pack(pady=5)
 pores_label = tk.Label(row3, text="모공: --", font=("Arial", 12), bg="white", width=12)
 pores_label.pack(side="left")
-# 빈 라벨로 줄 맞춤
-tk.Label(row3, text="", font=("Arial", 12), bg="white", width=12).pack(side="left")
+tk.Label(row3, text="", font=("Arial", 12), bg="white", width=12).pack(side="left")  # 줄 맞춤용 공백
 
-# 아이디 입력 프레임
+# --- [중요] 아이디 입력칸은 스크롤 영역 안에 넣습니다 ---
 input_frame = tk.Frame(content_frame, bg="white", highlightbackground="#cccccc", highlightthickness=1)
-input_frame.pack(pady=20, ipady=10, fill="x", padx=20)
+input_frame.pack(pady=20, padx=20, ipady=10, fill="x")
 
-tk.Label(input_frame, text="사용자 ID:", font=("Arial", 14, "bold"), bg="white").pack(side="left", padx=10)
-id_entry = tk.Entry(input_frame, font=("Arial", 16), width=12, justify="center", bg="#f9f9f9")
-id_entry.pack(side="left", padx=10, fill="x", expand=True)
+tk.Label(input_frame, text="ID:", font=("Arial", 14, "bold"), bg="white").pack(side="left", padx=10)
+id_entry = tk.Entry(input_frame, font=("Arial", 16), width=10, justify="center", bg="#f9f9f9")
+id_entry.pack(side="left", padx=5, fill="x", expand=True)
 id_entry.insert(0, "test_user")
 
-# 안내 메시지 (스크롤 영역의 맨 아래)
+# 안내 메시지 (입력칸 아래)
 recommendation_label = tk.Label(content_frame, text="위 아이디를 확인하고\n아래 버튼을 눌러주세요.", font=("Arial", 12), bg="white",
                                 fg="#555")
-recommendation_label.pack(pady=20)
+recommendation_label.pack(pady=10)
 
-# --- 2. 고정된 하단 영역 (버튼) ---
-# 이 부분은 스크롤되지 않고 항상 화면 아래에 붙어있습니다.
+# 하단 여백 확보 (버튼에 가려지지 않게)
+tk.Label(content_frame, text="", bg="white", height=2).pack()
+
+# --- 2. 하단 고정 영역 (버튼은 여기에!) ---
 bottom_frame = tk.Frame(root, bg="white", pady=10)
 bottom_frame.pack(side="bottom", fill="x")
 
@@ -220,9 +210,12 @@ measure_button = tk.Button(bottom_frame, text="피부 측정하기",
                            font=("Arial", 22, "bold"),
                            bg="#00aaff", fg="white", relief="flat",
                            command=start_measurement)
-# pack을 쓰되, ipady(내부여백)를 줘서 버튼을 뚱뚱하게 만듭니다.
+# 버튼을 뚱뚱하게(ipady) 만들고 좌우 여백(padx)을 줍니다.
 measure_button.pack(fill="x", padx=20, ipady=15)
 
-# 초기화
+# -----------------------------------------------------------
+# [마지막] 터치 활성화 및 실행
+# -----------------------------------------------------------
+scroll_wrapper.enable_touch_scroll()
 draw_gauge(canvas, 0, 0)
 root.mainloop()
