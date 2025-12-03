@@ -16,42 +16,55 @@ from services.skin_analyzer import process_skin_analysis
 
 
 # -----------------------------------------------------------
-# [2] 헬퍼 클래스: 스크롤 가능한 프레임 (복사해서 쓰세요)
+# [2] 헬퍼 클래스: 스크롤 가능한 프레임
 # -----------------------------------------------------------
 class ScrollableFrame(tk.Frame):
     def __init__(self, container, *args, **kwargs):
         super().__init__(container, *args, **kwargs)
 
-        # 캔버스 생성 (스크롤 영역)
+        # 캔버스 생성
         self.canvas = tk.Canvas(self, bg="white", highlightthickness=0)
 
         # 스크롤바 생성
         scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
 
-        # 실제 내용이 들어갈 프레임
+        # 내용이 들어갈 프레임
         self.scrollable_frame = tk.Frame(self.canvas, bg="white")
 
-        # 프레임 크기가 변할 때 스크롤 영역 재설정
         self.scrollable_frame.bind(
             "<Configure>",
             lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
         )
 
-        # 캔버스 안에 프레임 그리기
         self.canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
-
-        # 스크롤바 연결
         self.canvas.configure(yscrollcommand=scrollbar.set)
 
-        # 배치
         self.canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
 
-        # 마우스 휠 스크롤 지원 (선택 사항)
+        # -------------------------------------------------------
+        # [핵심] 터치(마우스 드래그) 이벤트 바인딩
+        # -------------------------------------------------------
+        # 1. 화면을 누를 때: 현재 위치 기억
+        self.canvas.bind("<ButtonPress-1>", self.start_scroll)
+        # 2. 누른 채로 움직일 때: 화면을 그만큼 이동시킴
+        self.canvas.bind("<B1-Motion>", self.do_scroll)
+
+        # (선택) 마우스 휠도 계속 지원
         self.canvas.bind_all("<MouseWheel>", self._on_mousewheel)
 
     def _on_mousewheel(self, event):
         self.canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+    # --- 터치 스크롤 함수 ---
+    def start_scroll(self, event):
+        # 터치 시작 지점을 기억합니다.
+        self.canvas.scan_mark(event.x, event.y)
+
+    def do_scroll(self, event):
+        # 시작 지점으로부터 얼마나 움직였는지 계산해서 화면을 이동시킵니다.
+        # gain=1은 손가락이 움직인 만큼 정확히 따라오게 합니다.
+        self.canvas.scan_dragto(event.x, event.y, gain=1)
 
 
 # -----------------------------------------------------------
