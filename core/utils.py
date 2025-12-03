@@ -450,17 +450,21 @@ def save_recommendation_to_db(user_id: str, analysis_id: int, skin_age: float,
 # ==============================================================================
 
 
-# 프로필 저장/업데이트 (Upsert)
 def save_user_profile_db(user_id, data: dict):
+    """
+    사용자 프로필 정보를 user_profiles 테이블에 저장하거나 업데이트합니다.
+    """
+    conn = None
     try:
         conn = psycopg2.connect(**DB_CONFIG)
         cursor = conn.cursor()
 
-        # 이미 있으면 업데이트, 없으면 삽입 (ON CONFLICT 구문 사용)
+        # [수정] user_profiles 테이블 사용
+        # 값이 없으면(None) DB에 NULL로 들어가지 않도록 .get('키', 기본값)을 사용
         query = """
             INSERT INTO user_profiles 
-            (user_id, age, sleep_hours_7d, water_intake_ml, wash_freq_per_day, sensitivity, pref_texture, wash_temp)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            (user_id, age, sleep_hours_7d, water_intake_ml, wash_freq_per_day, sensitivity, pref_texture, wash_temp, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
             ON CONFLICT (user_id) 
             DO UPDATE SET
                 age = EXCLUDED.age,
@@ -472,28 +476,39 @@ def save_user_profile_db(user_id, data: dict):
                 wash_temp = EXCLUDED.wash_temp,
                 updated_at = CURRENT_TIMESTAMP;
         """
+
+        # 실제 데이터 바인딩 (기본값 0 또는 '' 설정으로 NULL 방지)
         cursor.execute(query, (
             user_id,
-            data.get('age'),
-            data.get('sleep_hours_7d'),
-            data.get('water_intake_ml'),
-            data.get('wash_freq_per_day'),
-            data.get('sensitivity'),
-            data.get('pref_texture'),
-            data.get('wash_temp', 'warm')
+            data.get('age', 25),  # 나이 기본값 25
+            data.get('sleep_hours_7d', 7),  # 수면 기본값 7
+            data.get('water_intake_ml', 1000),  # 물 기본값 1000
+            data.get('wash_freq_per_day', 2),  # 세안 빈도 기본값 2 (여기 값이 자꾸 비었었음)
+            data.get('sensitivity', 'no'),  # 민감성 기본값 no
+            data.get('pref_texture', 'lotion'),  # 제형 기본값 lotion
+            data.get('wash_temp', 'warm')  # 온도 기본값 warm
         ))
 
         conn.commit()
-        cursor.close()
-        conn.close()
         return True
+
     except Exception as e:
-        logger.error(f"프로필 저장 실패: {e}")
+        logger.error(f"❌ 프로필 저장 실패: {e}")
+        if conn: conn.rollback()
         return False
 
+    finally:
+        if conn: conn.close()
 
-# 프로필 조회
+
+# ---------------------------------------------------------
+# 2. 프로필 조회
+# ---------------------------------------------------------
 def get_user_profile_db(user_id):
+    """
+    user_profiles 테이블에서 정보를 가져옵니다.
+    """
+    conn = None
     try:
         conn = psycopg2.connect(**DB_CONFIG)
         cursor = conn.cursor()
@@ -505,11 +520,9 @@ def get_user_profile_db(user_id):
         """
         cursor.execute(query, (user_id,))
         row = cursor.fetchone()
-        cursor.close()
-        conn.close()
 
         if row:
-            # 딕셔너리로 변환하여 반환
+            # DB 컬럼 순서대로 매핑
             return {
                 "age": row[0],
                 "sleep_hours_7d": row[1],
@@ -519,10 +532,14 @@ def get_user_profile_db(user_id):
                 "pref_texture": row[5],
                 "wash_temp": row[6]
             }
-        return None  # 프로필 없음
+        return {}  # 데이터가 없으면 빈 딕셔너리 반환 (None 대신)
+
     except Exception as e:
-        logger.error(f"프로필 조회 실패: {e}")
-        return None
+        logger.error(f"❌ 프로필 조회 실패: {e}")
+        return {}
+
+    finally:
+        if conn: conn.close()
 
 
 def register_user_db(user_id, password, name):
