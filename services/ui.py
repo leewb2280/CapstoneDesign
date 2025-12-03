@@ -141,11 +141,11 @@ tk.Label(root, text="[ 상태 메시지 ]", font=("Arial", 14, "bold"), fg="#d95
 recommendation_label = tk.Label(root, text="버튼을 눌러 측정을 시작하세요.", font=("Arial", 12), bg="white")
 recommendation_label.pack(pady=5)
 
-# --- 측정 버튼 ---
-
-measure_button = tk.Button(root, text="피부 측정하기", font=("Arial", 16, "bold"), bg="#00aaff", fg="white", relief="flat",
-                           pady=2, command=start_measurement)
-measure_button.pack(side="bottom", pady=30, padx=20, fill="x")
+measure_button = tk.Button(root, text="피부 측정하기",
+                           font=("Arial", 22, "bold"),
+                           bg="#00aaff", fg="white", relief="flat",
+                           command=start_measurement)
+measure_button.place(relx=0.05, rely=0.85, relwidth=0.9, height=100)
 
 draw_gauge(canvas, 0, 0)
 root.mainloop()
