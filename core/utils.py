@@ -21,7 +21,7 @@ import numpy as np
 from services.config import *
 
 from services.filters import get_filter_query
-1
+
 # 로깅 설정
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
