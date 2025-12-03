@@ -125,40 +125,38 @@ def capture_image_from_camera(save_dir="temp_uploads"):
     filename = f"cam_{uuid.uuid4()}.jpg"
     filepath = os.path.join(save_dir, filename)
 
+    picam2 = None  # 변수 초기화
+
     try:
         from picamera2 import Picamera2
 
-        logger.info("📸 AI 분석용 고화질 캡처를 시작합니다...")
+        logger.info("📸 [Pi] Picamera2로 촬영을 시도합니다...")
+        picam2 = Picamera2()  # 카메라 연결
 
-        # 인스턴스 생성
-        picam2 = Picamera2()
-
-        # 설정: 640x480 (보내주신 설정).
-        # *참고: 피부 정밀 분석을 위해서는 해상도를 (1920, 1080) 등으로 높이는 것을 추천합니다.
         config = picam2.create_still_configuration(main={"size": (640, 480)})
         picam2.configure(config)
 
-        # 카메라 예열 (안정화)
-        logger.info("카메라 안정화 대기... (3초)")
         picam2.start()
-        time.sleep(3)
-
-        # 캡처 및 저장
+        time.sleep(2)  # 안정화
         picam2.capture_file(filepath)
-
         picam2.stop()
-        # picam2 객체는 닫아주는 것이 좋습니다 (컨텍스트에 따라 다름)
-        # picam2.close()
 
-        logger.info(f"캡처 완료: {filepath}")
+        logger.info(f"✅ [Pi] 촬영 완료: {filepath}")
         return filepath
 
     except ImportError:
-        logger.error("Picamera2 라이브러리가 설치되지 않았습니다.")
-        raise Exception("카메라 모듈을 찾을 수 없습니다 (Picamera2 미설치).")
+        logger.warning("⚠️ Picamera2 모듈 없음. PC 환경으로 간주합니다.")
     except Exception as e:
-        logger.error(f"카메라 촬영 오류: {e}")
-        raise Exception(f"카메라 촬영 실패: {str(e)}")
+        logger.error(f"❌ Picamera2 에러: {e}")
+        # 여기서 에러가 나도 아래 finally에서 닫아줍니다.
+    finally:
+        # [핵심 수정] 카메라가 켜져 있다면 무조건 닫아서 자원을 반환함
+        if picam2 is not None:
+            try:
+                picam2.close()
+                logger.info("🔒 카메라 자원 해제 완료")
+            except Exception as e:
+                logger.warning(f"카메라 닫기 실패(이미 닫힘 등): {e}")
 
 
 # ==============================================================================
