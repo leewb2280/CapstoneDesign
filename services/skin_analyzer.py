@@ -259,5 +259,6 @@ async def process_skin_analysis(
         "message": "분석 완료",
         "source": f"{sensor_source} + Camera + GPT",
         "total_score": total_score,
-        "scores": scores
+        "scores": scores,
+        "image_path": file_path
     }
