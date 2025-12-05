@@ -137,6 +137,12 @@ def capture_image_from_camera(save_dir="temp_uploads"):
         picam2.configure(config)
 
         picam2.start()
+
+        picam2.set_controls({
+            "Brightness": 0.3,  # 밝기를 30% 증가
+            "AnalogueGain": 2.0  # 빛 감지 감도를 2배로 증가 (어두운 곳에서 효과적)
+
+        })
         time.sleep(2)  # 안정화
         picam2.capture_file(filepath)
         picam2.stop()
