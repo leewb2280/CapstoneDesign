@@ -114,8 +114,8 @@ class SignupRequest(BaseModel):
 class RecommendationRequest(BaseModel):
     user_id: str
     analysis_id: int
-    lifestyle: dict  # {sleep_hours_7d, water_intake_ml, ...}
-    user_pref: dict  # {age, pref_texture}
+    lifestyle: dict
+    user_pref: dict
 
 
 # ==============================================================================

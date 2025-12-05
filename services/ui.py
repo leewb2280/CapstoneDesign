@@ -140,19 +140,18 @@ def start_measurement():
 # -----------------------------------------------------------
 root = tk.Tk()
 root.title("AI SkinCare Kiosk")
-# root.attributes('-fullscreen', True) # 전체화면 필요 시 해제
-root.geometry("480x800")
+root.attributes('-fullscreen', True)
+# root.geometry("480x800")
 root.configure(bg="white")
 root.bind("<Escape>", lambda e: root.destroy())
 
-# --- 1. 상단 스크롤 영역 (여기에 내용을 다 넣습니다) ---
+# --- 1. 상단 스크롤 영역  ---
 scroll_wrapper = ScrollableFrame(root)
 scroll_wrapper.pack(side="top", fill="both", expand=True)
 
 # content_frame: 실제 내용이 담기는 곳
 content_frame = scroll_wrapper.scrollable_frame
 
-# [내용물 배치]
 tk.Label(content_frame, text="AI 스킨케어 분석", font=("Arial", 20, "bold"), bg="white").pack(pady=20)
 
 canvas = tk.Canvas(content_frame, width=350, height=200, bg="white", highlightthickness=0)
@@ -185,7 +184,6 @@ pores_label = tk.Label(row3, text="모공: --", font=("Arial", 12), bg="white", 
 pores_label.pack(side="left")
 tk.Label(row3, text="", font=("Arial", 12), bg="white", width=12).pack(side="left")  # 줄 맞춤용 공백
 
-# --- [중요] 아이디 입력칸은 스크롤 영역 안에 넣습니다 ---
 input_frame = tk.Frame(content_frame, bg="white", highlightbackground="#cccccc", highlightthickness=1)
 input_frame.pack(pady=20, padx=20, ipady=10, fill="x")
 
@@ -194,15 +192,15 @@ id_entry = tk.Entry(input_frame, font=("Arial", 16), width=10, justify="center",
 id_entry.pack(side="left", padx=5, fill="x", expand=True)
 id_entry.insert(0, "test_user")
 
-# 안내 메시지 (입력칸 아래)
+# 안내 메시지
 recommendation_label = tk.Label(content_frame, text="위 아이디를 확인하고\n아래 버튼을 눌러주세요.", font=("Arial", 12), bg="white",
                                 fg="#555")
 recommendation_label.pack(pady=10)
 
-# 하단 여백 확보 (버튼에 가려지지 않게)
+# 하단 여백 확보
 tk.Label(content_frame, text="", bg="white", height=2).pack()
 
-# --- 2. 하단 고정 영역 (버튼은 여기에!) ---
+# --- 2. 하단 고정 영역 ---
 bottom_frame = tk.Frame(root, bg="white", pady=10)
 bottom_frame.pack(side="bottom", fill="x")
 
@@ -210,11 +208,10 @@ measure_button = tk.Button(bottom_frame, text="피부 측정하기",
                            font=("Arial", 22, "bold"),
                            bg="#00aaff", fg="white", relief="flat",
                            command=start_measurement)
-# 버튼을 뚱뚱하게(ipady) 만들고 좌우 여백(padx)을 줍니다.
 measure_button.pack(fill="x", padx=20, ipady=15)
 
 # -----------------------------------------------------------
-# [마지막] 터치 활성화 및 실행
+# 터치 활성화 및 실행
 # -----------------------------------------------------------
 scroll_wrapper.enable_touch_scroll()
 draw_gauge(canvas, 0, 0)
