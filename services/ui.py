@@ -75,24 +75,20 @@ current_photo_image = None
 def draw_gauge(canvas, oil, moisture):
     canvas.delete("all")
 
-    # [수정] 그래프 설정값 (크기 대폭 확대)
-    line_width = 30  # 선 두께 (20 -> 30)
-    font_style = ("Arial", 26, "bold")  # 글씨 크기 (16 -> 26)
+    # 그래프 설정값
+    line_width = 30
+    font_style = ("Arial", 26, "bold")
 
     # --- 유분 게이지 (좌측) ---
-    # 좌표 (x1, y1, x2, y2) -> 지름 200px (기존 120px)
     canvas.create_oval(20, 20, 220, 220, outline="#e0e0e0", width=line_width)
     canvas.create_arc(20, 20, 220, 220, start=90, extent=-oil * 3.6,
                       outline="#00aaff", width=line_width, style="arc")
-    # 텍스트 위치: 중심점 (120, 120)
     canvas.create_text(120, 120, text=f"유분\n{int(oil)}%", fill="black", font=font_style)
 
     # --- 수분 게이지 (우측) ---
-    # 좌표 이동: x축으로 +240px 이동
     canvas.create_oval(260, 20, 460, 220, outline="#e0e0e0", width=line_width)
     canvas.create_arc(260, 20, 460, 220, start=90, extent=-moisture * 3.6,
                       outline="#55ff55", width=line_width, style="arc")
-    # 텍스트 위치: 중심점 (360, 120)
     canvas.create_text(360, 120, text=f"수분\n{int(moisture)}%", fill="black", font=font_style)
 
 
@@ -179,6 +175,7 @@ root = tk.Tk()
 root.title("AI SkinCare Kiosk")
 root.attributes('-fullscreen', True)
 root.configure(bg="white")
+# 키보드 ESC로도 종료 가능
 root.bind("<Escape>", lambda e: root.destroy())
 
 scroll_wrapper = ScrollableFrame(root)
@@ -194,7 +191,6 @@ main_layout_frame.pack(fill="x", expand=True, padx=20, pady=10)
 left_column = tk.Frame(main_layout_frame, bg="white")
 left_column.pack(side="left", fill="both", expand=True, padx=(0, 20))
 
-# [수정] 캔버스 크기 확대 (350x200 -> 500x250) : 커진 그래프를 담기 위해
 canvas = tk.Canvas(left_column, width=500, height=250, bg="white", highlightthickness=0)
 canvas.pack()
 
@@ -259,6 +255,14 @@ measure_button = tk.Button(bottom_frame, text="피부 측정하기",
                            bg="#00aaff", fg="white", relief="flat",
                            command=start_measurement)
 measure_button.pack(fill="x", padx=30, ipady=20)
+
+# --- [추가] 우측 상단 종료 버튼 ---
+# place()를 사용해 스크롤 프레임 위에 고정시킴
+exit_button = tk.Button(root, text="종료", font=("Arial", 16, "bold"),
+                        bg="#ff4444", fg="white", relief="flat",
+                        command=root.destroy)
+# 우측(relx=1.0)에서 왼쪽으로 20px, 위에서 20px 떨어진 곳에 배치
+exit_button.place(relx=1.0, x=-20, y=20, anchor="ne")
 
 # 실행
 scroll_wrapper.enable_touch_scroll()
