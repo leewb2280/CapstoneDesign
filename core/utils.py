@@ -604,7 +604,7 @@ def search_skin_history_db(
         start_date: str = None,
         end_date: str = None,
         page: int = 1,
-        page_size: int = 50
+        page_size: int = 200
 ):
     try:
         conn = psycopg2.connect(**DB_CONFIG)
