@@ -40,7 +40,7 @@ def read_hardware_sensors():
         import RPi.GPIO as GPIO
 
         # --- [HW팀 설정 상수] ---
-        WATER_MIN, WATER_MAX = 0, 300
+        WATER_MIN, WATER_MAX = 0, 150
         OIL_MIN, OIL_MAX = 300, 1200
 
         MEASUREMENT_DURATION = 5  # 5초 측정
